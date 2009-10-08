@@ -168,11 +168,17 @@ MochiKit.MochiChi.Connection.prototype = {
       var dfr = null;
       if (!this.connection.connected) {
         dfr = this.connection.connect(this.server);
+        MochiKit.Signal.connect(this.connection, 'response',
+            MochiKit.Base.bind(this._handle_response, this))
       } else {
         dfr = MochiKit.Async.succeed('done');
       }
       dfr.addCallback(this._login);
       return dfr
+  },
+
+  _handle_response: function(DOM){
+    console.log("got" + DOM)
   },
 
   _login: function () {
