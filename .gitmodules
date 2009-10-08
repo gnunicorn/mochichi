@@ -1,0 +1,3 @@
+[submodule "mochikit"]
+	path = mochikit
+	url = git://github.com/ligthyear/mochikit.git
