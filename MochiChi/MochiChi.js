@@ -21,7 +21,7 @@ MochiKit.MochiChi.RawConnection = function (url) {
     this.spool = [];
     this.lang = 'en';
     this.session_id = null;
-    this.rid = null;
+    this.stream_id = null;
 
     // should not be changed right now
     this.version = '1.6';
@@ -41,6 +41,7 @@ MochiKit.MochiChi.RawConnection.prototype =  {
           'to' : server,
           'content': 'text/xml; charset=utf-8',
           'xml:lang': this.lang,
+          'xmpp:version': '1.0',
           'ver': this.version,
           'wait': this.wait, // 3 is good for testing
           'hold': this.hold,
@@ -50,13 +51,26 @@ MochiKit.MochiChi.RawConnection.prototype =  {
       var start_session = function(response) {
           var body = response.responseXML.documentElement;
           self.session_id = body.getAttribute("sid");
+          self.stream_id = body.getAttribute("authid");
           self.set_connected(true);
 
-          self._schedule_send();
+          // there must be children in the body, otherwise
+          // we need to send another request and hope that
+          // we got it by then
+
+          if (!body.hasChildNodes()){
+            return self.send(this.create_body({}));
+            }
+          return response;
         };
+      var finalize_request = function(response){
+          self._schedule_send()
+          return response;
+        }
 
       dfr = this.send(this.create_body(attrs));
       dfr.addCallback(start_session)
+      //dfr.addCallback(finalize_request)
 
       return dfr;
     },
@@ -66,6 +80,14 @@ MochiKit.MochiChi.RawConnection.prototype =  {
       this.connected = value;
     },
 
+    request: function(request_dom){
+        console.log("pushing");
+        this.spool.push(request_dom);
+        console.log("pushed" + this.spool);
+        MochiKit.Async.callLater(0,
+            MochiKit.Base.bind(this._schedule_send, this));
+        console.log("done");
+    },
     /*send: function(data) {
       this.spool.push(data);
       this._schedule_send();
@@ -173,7 +195,8 @@ MochiKit.MochiChi.Connection.prototype = {
       } else {
         dfr = MochiKit.Async.succeed('done');
       }
-      dfr.addCallback(this._login);
+      dfr.addCallback(MochiKit.Base.bind(this._login, this));
+      dfr.addCallback(MochiKit.Base.bind(this.connection._schedule_send, this.connection));
       return dfr
   },
 
@@ -181,9 +204,58 @@ MochiKit.MochiChi.Connection.prototype = {
     console.log("got" + DOM)
   },
 
-  _login: function () {
-    // do actually something here
+  _got_auth: function(response) {
+    console.log(response);
+    var body = response.responseXML.documentElement;
+    var child = body.firstChild();
+    if (!child){
+      throw "Incomplete answer from the server. Suckage :( !"
+    }
+    if (child.nodeName === "success"){
+        // YAY. we are logged in
+        return True
+    }
 
+    throw "Login failed: " + child.nodeName;
+
+  },
+
+  _login: function (response) {
+    // do actually something here
+    // time to request the stream
+    // var authid = body.getAttribute('authid');
+
+    var body = response.responseXML.documentElement;
+
+    console.log("login");
+    var plain_allowed = false;
+    var digest_md5_allowed = false;
+    var anonymous_allowed = false;
+
+    var mechanisms = body.getElementsByTagName("mechanism");
+    console.log("mechans" + mechanisms);
+    for (i = 0; i < mechanisms.length; i++) {
+        mech = mechanisms[i].nodeValue;
+        if (mech == 'DIGEST-MD5') {
+            digest_md5_allowed = true;
+        } else if (mech == 'PLAIN') {
+            plain_allowed = true;
+        } else if (mech == 'ANONYMOUS') {
+            anonymous_allowed = true;
+        }
+      }
+    console.log("allowed");
+
+    if (this.username === null){
+      /* anonymous login try */
+      // FIXME: add me.
+    }
+    request = MochiKit.DOM.createDOM('auth', {
+                xmlns: "urn:ietf:params:xml:ns:xmpp-sasl",
+                mechanism: "ANONYMOUS"});
+    dfr = this.connection.send(this.connection.create_body({}, [request]));
+    dfr.addCallback(MochiKit.Base.bind(this._got_auth, this));
+    console.log('test');
   },
 
   disconnect: function() {
