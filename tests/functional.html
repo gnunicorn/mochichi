@@ -1,0 +1,24 @@
+<html>
+<head>
+    <script type="text/javascript" src="../mochikit/MochiKit/MochiKit.js"></script>
+    <script type="text/javascript" src="../MochiChi/MochiChi.js"></script>
+</head>
+<body>
+<pre id="test">
+<script type="text/javascript">
+try {
+	console.log('started');
+	var my_user = new MochiKit.MochiChi.Connection('/xmpp-httpbind');
+	console.log('yay');
+	dfr = my_user.connect('ben@localhost', 'pass');
+	console.log("yep" + dfr);
+} catch (err) {
+	console.log('error '+ err);
+
+}
+</script>
+</pre>
+<div id="status">
+</div>
+</body>
+</html>

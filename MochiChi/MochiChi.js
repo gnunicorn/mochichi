@@ -15,7 +15,7 @@ MochiKit.Base._module('MochiChi', '1.5', ['Base', 'Async', 'Signal', 'DOM']);
  *      new_
  * */
 MochiKit.MochiChi.RawConnection = function (url) {
-    this.connected = False;
+    this.connected = false;
     this.url = url ? url: '/http-bind';
     this.id = this._nextId();
     this.spool = [];
@@ -31,26 +31,37 @@ MochiKit.MochiChi.RawConnection = function (url) {
   }
 
 MochiKit.MochiChi.RawConnection.prototype =  {
-    connect: function(url) {
+    connect: function(server) {
 
       if (this.connected)
         throw "Connection already/still connected"
 
         attrs = {
-          'to' : 'jabber.org', // FIXME: do a correct look up here
+          'to' : server,
+          'content': 'text/xml; charset=utf-8',
+          'rid': 1,
           'xml:lang': this.lang,
           'ver': this.version,
           'wait': this.wait,
           'hold': this.hold,
         }
       body = this._create_body(attrs);
-      return body;
+      dfr = MochiKit.Async.doXHR(this.url, {
+              method : 'POST',
+              sendContent: MochiKit.DOM.toHTML(body)}
+           );
+      dfr.addCallback(this._start_session)
+      return dfr;
     },
 
     send: function(data) {
       this.spool.push(data);
       this._schedule_send();
 
+    },
+
+    _start_session: function(result_data) {
+      console.log(result_data);
     },
 
     _create_body: function(attrs) {
@@ -108,10 +119,14 @@ MochiKit.MochiChi.Connection.prototype = {
 
       this.jid = jid;
       this.password = password;
+      var parsed = MochiKit.MochiChi.parse_jid(jid);
+      this.server = parsed['domain'];
+      this.username = parsed['user'];
+      this.resource = parsed['resource'] ? parsed['resource'] : 'MochiChi';
 
       var dfr = null;
       if (!this.connection.connected) {
-        dfr = this.connection.connect();
+        dfr = this.connection.connect(this.server);
       } else {
         dfr = MochiKit.Async.succeed('done');
       }
