@@ -11,6 +11,7 @@ try {
 	var my_user = new MochiKit.MochiChi.Connection('/xmpp-httpbind');
 	console.log('yay');
 	dfr = my_user.connect('ben@localhost', 'pass');
+	dfr.addErrback(console.log);
 	console.log("yep" + dfr);
 } catch (err) {
 	console.log('error '+ err);

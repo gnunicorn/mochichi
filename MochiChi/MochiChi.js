@@ -122,7 +122,7 @@ MochiKit.MochiChi.RawConnection.prototype =  {
     },
 
     _got_response: function(response) {
-      body = response.responseXML.documentElement;
+      var body = response.responseXML.documentElement;
       for (child in body.ChildNodes) {
         try {
           MochiKit.Signal.signal(this, 'response', child);
@@ -159,7 +159,7 @@ MochiKit.MochiChi.RawConnection.prototype =  {
 
     toString: MochiKit.Base.forwardCall("repr"),
     _nextId: MochiKit.Base.counter(),
-    _nextRequestId: MochiKit.Base.counter(12345)
+    _nextRequestId: MochiKit.Base.counter(Math.ceil(Math.random() * 10203))
 
   }
 
@@ -206,8 +206,8 @@ MochiKit.MochiChi.Connection.prototype = {
 
   _got_auth: function(response) {
     console.log(response);
-    var body = response.responseXML.documentElement;
-    var child = body.firstChild();
+    var body = MochiKit.MochiChi.get_body(response);
+    var child = body.firstChild;
     if (!child){
       throw "Incomplete answer from the server. Suckage :( !"
     }
@@ -216,7 +216,7 @@ MochiKit.MochiChi.Connection.prototype = {
         return True
     }
 
-    throw "Login failed: " + child.nodeName;
+    throw "LoginError:" + child.nodeName;
 
   },
 
@@ -225,7 +225,7 @@ MochiKit.MochiChi.Connection.prototype = {
     // time to request the stream
     // var authid = body.getAttribute('authid');
 
-    var body = response.responseXML.documentElement;
+    var body = MochiKit.MochiChi.get_body(response);
 
     console.log("login");
     var plain_allowed = false;
@@ -235,7 +235,8 @@ MochiKit.MochiChi.Connection.prototype = {
     var mechanisms = body.getElementsByTagName("mechanism");
     console.log("mechans" + mechanisms);
     for (i = 0; i < mechanisms.length; i++) {
-        mech = mechanisms[i].nodeValue;
+        mech = mechanisms[i].firstChild.nodeValue;
+        console.log(mech);
         if (mech == 'DIGEST-MD5') {
             digest_md5_allowed = true;
         } else if (mech == 'PLAIN') {
@@ -247,15 +248,46 @@ MochiKit.MochiChi.Connection.prototype = {
     console.log("allowed");
 
     if (this.username === null){
-      /* anonymous login try */
-      // FIXME: add me.
-    }
-    request = MochiKit.DOM.createDOM('auth', {
+      if (!anonymous_allowed) {
+        throw "LoginError: Anonymous login forbidden";
+      }
+      request = MochiKit.DOM.createDOM('auth', {
                 xmlns: "urn:ietf:params:xml:ns:xmpp-sasl",
                 mechanism: "ANONYMOUS"});
-    dfr = this.connection.send(this.connection.create_body({}, [request]));
-    dfr.addCallback(MochiKit.Base.bind(this._got_auth, this));
+      dfr = this.connection.send(this.connection.create_body({}, [request]));
+      dfr.addCallback(MochiKit.Base.bind(this._got_auth, this));
+      return dfr
+
+    } else if (digest_md5_allowed) {
+      console.log("doing md5");
+      request = MochiKit.DOM.createDOM('auth', {
+                xmlns: "urn:ietf:params:xml:ns:xmpp-sasl",
+                mechanism: "DIGEST-MD5"});
+      dfr = this.connection.send(this.connection.create_body({}, [request]));
+      dfr.addCallback(MochiKit.Base.bind(this._md5_challange, this));
+      dfr.addCallback(MochiKit.Base.bind(this._got_auth, this));
+      return dfr
+
+    } else if (plain_allowed) {
+      throw "NotImplemented: plain text isn't implemented yet";
+
+    } else {
+      throw "LoginError: Unsupported Login Mechanism"
+    }
+
     console.log('test');
+  },
+
+  _md5_challange: function(response) {
+    var body = response.responseXML.documentElement;
+    var challenge = body.firstChild;
+    if (challenge.nodeName !== "challenge") {
+      throw "ERROR";
+    }
+    var key = challenge.nodeValue;
+
+    return response;
+
   },
 
   disconnect: function() {
@@ -265,6 +297,9 @@ MochiKit.MochiChi.Connection.prototype = {
 }
 
 MochiKit.Base.update(MochiKit.MochiChi, {
+    get_body: function(response) {
+      return response.responseXML.documentElement;
+    },
     parse_jid: function(jid) {
       var results = {
         user: null,
