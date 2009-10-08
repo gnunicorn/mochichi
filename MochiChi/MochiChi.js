@@ -12,7 +12,7 @@ MochiKit.Base._module('MochiChi', '1.5', ['Base', 'Async', 'Signal', 'DOM']);
  * 
  * signals:
  *      state - the current state the Connection is in
- *      new_
+ *      response
  * */
 MochiKit.MochiChi.RawConnection = function (url) {
     this.connected = false;
@@ -27,6 +27,7 @@ MochiKit.MochiChi.RawConnection = function (url) {
     this.version = '1.6';
     this.wait = 60; // FIXME: make this dynamic by looking at the browser
     this.hold = 1; // this should not be changed ever
+    this.currently_open = 0;
 
   }
 
@@ -36,55 +37,92 @@ MochiKit.MochiChi.RawConnection.prototype =  {
       if (this.connected)
         throw "Connection already/still connected"
 
-        attrs = {
+      attrs = {
           'to' : server,
           'content': 'text/xml; charset=utf-8',
-          'rid': 1,
           'xml:lang': this.lang,
           'ver': this.version,
-          'wait': this.wait,
+          'wait': this.wait, // 3 is good for testing
           'hold': this.hold,
         }
-      body = this._create_body(attrs);
-      dfr = MochiKit.Async.doXHR(this.url, {
-              method : 'POST',
-              sendContent: MochiKit.DOM.toHTML(body)}
-           );
-      dfr.addCallback(this._start_session)
+
+      self = this;
+      var start_session = function(response) {
+          var body = response.responseXML.documentElement;
+          self.session_id = body.getAttribute("sid");
+          self.set_connected(true);
+
+          self._schedule_send();
+        };
+
+      dfr = this.send(this.create_body(attrs));
+      dfr.addCallback(start_session)
+
       return dfr;
     },
 
-    send: function(data) {
+    set_connected: function(value){
+      MochiKit.Signal.signal(this, 'connected', value);
+      this.connected = value;
+    },
+
+    /*send: function(data) {
       this.spool.push(data);
       this._schedule_send();
-
     },
+    */
+    send: function(dom) {
+      return MochiKit.Async.doXHR(this.url, {
+              method : 'POST',
+              sendContent: MochiKit.DOM.toHTML(dom)}
+            );
+      },
 
-    _start_session: function(result_data) {
-      console.log(result_data);
-    },
-
-    _create_body: function(attrs) {
-      var body = document.createElement('body');
-      attrs['xmlns'] = 'http://jabber.org/protocol/httpbind';
-      MochiKit.DOM.updateNodeAttributes(body, attrs);
-      return body
-    },
-  
-    _create_session_body: function() {
-      attrs = {
-          wait: this.wait,
-          rid: MochiKit.Base.Counter(this.rid)
+    create_body: function(attrs, nodes) {
+      defaults = {
+          xmlns: 'http://jabber.org/protocol/httpbind',
+          rid: this._nextRequestId(),
         }
 
       if (this.session_id) {
-        attrs['sid'] = this.session_id;
+        defaults['sid'] = this.session_id;
       }
-      return this._create_body(attrs);
+
+      MochiKit.Base.update(attrs, defaults)
+
+    return MochiKit.DOM.createDOM('body', attrs, nodes);
+    },
+  
+    _send_done: function(result) {
+        this.currently_open --;
+        this._schedule_send();
+        return result
+    },
+
+    _got_response: function(response) {
+      body = response.responseXML.documentElement;
+      for (child in body.ChildNodes) {
+        try {
+          MochiKit.Signal.signal(this, 'response', child);
+        } catch(error) {
+          console.log(error);
+        }
+      }
     },
 
     _schedule_send: function() {
-       
+      if (this.currently_open > this.hold){
+        return
+      }
+      this.currently_open ++;
+      var spooled = this.spool;
+      var body = this.create_body({}, spooled);
+      this.spool = [];
+
+      dfr = this.send(body);
+      dfr.addBoth(MochiKit.Base.bind(this._send_done, this))
+      dfr.addCallback(MochiKit.Base.bind(this._got_response, this))
+      return dfr
     },
 
     repr: function () {
@@ -98,7 +136,9 @@ MochiKit.MochiChi.RawConnection.prototype =  {
 
 
     toString: MochiKit.Base.forwardCall("repr"),
-    _nextId: MochiKit.Base.counter()
+    _nextId: MochiKit.Base.counter(),
+    _nextRequestId: MochiKit.Base.counter(12345)
+
   }
 
 
@@ -112,6 +152,7 @@ MochiKit.MochiChi.Connection = function(service_url) {
     this.connection = new MochiKit.MochiChi.RawConnection(service_url);
     this.jid = null;
     this.password = null;
+    MochiKit.Signal.connect(this.connection, 'connected', console.log);
   }
 
 MochiKit.MochiChi.Connection.prototype = {
@@ -136,6 +177,7 @@ MochiKit.MochiChi.Connection.prototype = {
 
   _login: function () {
     // do actually something here
+
   },
 
   disconnect: function() {
