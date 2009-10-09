@@ -280,12 +280,8 @@ MochiKit.Base.update(MochiKit.MochiChi, {
         body = response;
       }
 
-      try {
-        if (!body.nodeName || body.nodeName.toUpperCase() !== 'BODY')
-          throw "NoBodyElementFound";
-      } catch(err) {
-        throw err;
-      }
+      if (!body.nodeName || body.nodeName.toUpperCase() !== 'BODY')
+        throw "NoBodyElementFound";
 
       return body;
     },
