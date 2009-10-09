@@ -37,7 +37,7 @@ MochiKit.MochiChi.RawConnection.prototype =  {
       if (this.connected)
         throw "Connection already/still connected"
 
-      attrs = {
+      var attrs = {
           'to' : server,
           'content': 'text/xml; charset=utf-8',
           'xml:lang': this.lang,
@@ -68,7 +68,7 @@ MochiKit.MochiChi.RawConnection.prototype =  {
           return response;
         }
 
-      dfr = this.send(this.create_body(attrs));
+      var dfr = this.send(this.create_body(attrs));
       dfr.addCallback(start_session)
       //dfr.addCallback(finalize_request)
 
@@ -101,7 +101,7 @@ MochiKit.MochiChi.RawConnection.prototype =  {
       },
 
     create_body: function(attrs, nodes) {
-      defaults = {
+      var defaults = {
           xmlns: 'http://jabber.org/protocol/httpbind',
           rid: this._nextRequestId(),
         }
@@ -141,7 +141,7 @@ MochiKit.MochiChi.RawConnection.prototype =  {
       var body = this.create_body({}, spooled);
       this.spool = [];
 
-      dfr = this.send(body);
+      var dfr = this.send(body);
       dfr.addBoth(MochiKit.Base.bind(this._send_done, this))
       dfr.addCallback(MochiKit.Base.bind(this._got_response, this))
       return dfr
@@ -254,7 +254,7 @@ MochiKit.MochiChi.Connection.prototype = {
       request = MochiKit.DOM.createDOM('auth', {
                 xmlns: "urn:ietf:params:xml:ns:xmpp-sasl",
                 mechanism: "ANONYMOUS"});
-      dfr = this.connection.send(this.connection.create_body({}, [request]));
+      var dfr = this.connection.send(this.connection.create_body({}, [request]));
       dfr.addCallback(MochiKit.Base.bind(this._got_auth, this));
       return dfr
 
@@ -263,7 +263,7 @@ MochiKit.MochiChi.Connection.prototype = {
       request = MochiKit.DOM.createDOM('auth', {
                 xmlns: "urn:ietf:params:xml:ns:xmpp-sasl",
                 mechanism: "DIGEST-MD5"});
-      dfr = this.connection.send(this.connection.create_body({}, [request]));
+      var dfr = this.connection.send(this.connection.create_body({}, [request]));
       dfr.addCallback(MochiKit.Base.bind(this._md5_challange, this));
       dfr.addCallback(MochiKit.Base.bind(this._got_auth, this));
       return dfr
