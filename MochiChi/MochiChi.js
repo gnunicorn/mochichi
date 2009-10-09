@@ -234,8 +234,8 @@ MochiKit.MochiChi.Connection.prototype = {
 
     var mechanisms = body.getElementsByTagName("mechanism");
     console.log("mechans" + mechanisms);
-    for (i = 0; i < mechanisms.length; i++) {
-        mech = mechanisms[i].firstChild.nodeValue;
+    for (var i = 0; i < mechanisms.length; i++) {
+        var mech = mechanisms[i].firstChild.nodeValue;
         console.log(mech);
         if (mech == 'DIGEST-MD5') {
             digest_md5_allowed = true;
@@ -247,11 +247,11 @@ MochiKit.MochiChi.Connection.prototype = {
       }
     console.log("allowed");
 
-    if (this.username === null){
+    if (!this.username){
       if (!anonymous_allowed) {
         throw "LoginError: Anonymous login forbidden";
       }
-      request = MochiKit.DOM.createDOM('auth', {
+      var request = MochiKit.DOM.createDOM('auth', {
                 xmlns: "urn:ietf:params:xml:ns:xmpp-sasl",
                 mechanism: "ANONYMOUS"});
       var dfr = this.connection.send(this.connection.create_body({}, [request]));
@@ -260,7 +260,7 @@ MochiKit.MochiChi.Connection.prototype = {
 
     } else if (digest_md5_allowed) {
       console.log("doing md5");
-      request = MochiKit.DOM.createDOM('auth', {
+      var request = MochiKit.DOM.createDOM('auth', {
                 xmlns: "urn:ietf:params:xml:ns:xmpp-sasl",
                 mechanism: "DIGEST-MD5"});
       var dfr = this.connection.send(this.connection.create_body({}, [request]));
