@@ -6,7 +6,7 @@ MochiKit.MochiChi 1.5
 
 ***/
 
-MochiKit.Base._module('MochiChi', '1.5', ['Base', 'Async', 'Signal', 'DOM']);
+MochiKit.Base._module('MochiChi', '1.5', ['Base', 'Async', 'Signal', 'DOM', 'Crypt']);
 
 /** @id MochiKit.MochiChi.Connection
  * 
@@ -91,6 +91,10 @@ MochiKit.MochiChi.RawConnection.prototype =  {
     },
     */
     send: function(dom) {
+      if (this.session_id) {
+        dom.setAttribute('sid', this.session_id);
+      }
+
       return MochiKit.Async.doXHR(this.url, {
               method : 'POST',
               sendContent: MochiKit.DOM.toHTML(dom)}
@@ -194,7 +198,7 @@ MochiKit.MochiChi.Connection.prototype = {
     }
     if (child.nodeName === "success"){
         // YAY. we are logged in
-        return True
+        return true
     }
 
     throw "LoginError:" + child.nodeName;
@@ -256,12 +260,87 @@ MochiKit.MochiChi.Connection.prototype = {
   _md5_challenge: function(response) {
     var body = MochiKit.MochiChi.get_body(response);
     var challenge = body.firstChild;
-    if (challenge.nodeName !== "challenge") {
-      throw "ERROR";
+    console.log(challenge);
+    if (challenge.nodeName.toUpperCase() !== "CHALLENGE") {
+      throw "ERROR:" + challenge.nodeName;
     }
-    var key = challenge.nodeValue;
+    var key = challenge.firstChild.nodeValue;
+    console.log(key);
 
-    return response;
+    //return response;
+
+    var challenge = MochiKit.Crypt.decode64(key);
+    var incoming = {
+      realm: "",
+      host: null,
+      nonce: null,
+      qop: null
+      }
+
+    console.log(challenge);
+    splitted = challenge.split(',');
+    for (var i=0; i < splitted.length; i ++) {
+      var two_parts = splitted[i].split('=',2);
+      var key = two_parts[0];
+      var value = two_parts[1];
+      if (value[0] === '"'){
+        // surrounded by " remove them
+        value = value.slice(1, value.length-1);
+      }
+      incoming[key] = value;
+      console.log(key + "=" + value);
+    }
+
+    var cnonce = MochiKit.Crypt.hex_md5(Math.random() * 1234567890);
+
+    var digest_uri = "xmpp/" + this.server;
+    if (incoming['host'] !== null) {
+        digest_uri = digest_uri + "/" + host;
+    }
+
+    console.log(this.username);
+    console.log(this.password);
+    var A1 = MochiKit.Crypt.str_md5(this.username + ":" +
+            incoming.realm + ":" + this.password) +
+        ":" + incoming.nonce + ":" + cnonce;
+    var A2 = 'AUTHENTICATE:' + digest_uri;
+
+    console.log(A1);
+    console.log(A2);
+
+    quote = MochiKit.MochiChi.quote
+
+    var responseText = 'username=' + quote(this.username) + 
+      ',realm=' + quote(incoming.realm) + ',nonce=' +
+      quote(incoming.nonce) + ',cnonce=' +
+      quote(cnonce) + ',nc=00000001,qop=auth,digest-uri=' + 
+      quote(digest_uri) + ',response=' + quote(
+          MochiKit.Crypt.hex_md5(MochiKit.Crypt.hex_md5(A1) + ":" +
+              incoming.nonce + ":00000001:" + cnonce + ":auth:" +
+              MochiKit.Crypt.hex_md5(A2))
+        ) + ',charset="utf-8"';
+
+    console.log(responseText);
+    var response = MochiKit.DOM.createDOM('response', {
+            xmlns: "urn:ietf:params:xml:ns:xmpp-sasl"
+            }, [MochiKit.Crypt.encode64(responseText)]);
+
+    var dfr = this.connection.send(MochiKit.MochiChi.create_body({}, [response]));
+
+    var self = this;
+    function got_rsp(response){
+      var body = MochiKit.MochiChi.get_body(response);
+      var challenge = body.firstChild;
+      if (!challenge || challenge.nodeName.toUpperCase() !== 'CHALLENGE') {
+        throw "LoginFailed:" + challenge;
+      }
+      var resp = MochiKit.DOM.createDOM('response', {
+            xmlns: "urn:ietf:params:xml:ns:xmpp-sasl"});
+      return self.connection.send(MochiKit.MochiChi.create_body({}, [resp]));
+    }
+
+    dfr.addCallback(got_rsp)
+    return dfr
 
   },
 
@@ -292,13 +371,15 @@ MochiKit.Base.update(MochiKit.MochiChi, {
           rid: MochiKit.MochiChi._nextRequestId(),
         }
 
-      if (this.session_id) {
-        defaults['sid'] = this.session_id;
-      }
-
-      MochiKit.Base.update(attrs, defaults)
+    MochiKit.Base.update(attrs, defaults)
 
     return MochiKit.DOM.createDOM('body', attrs, nodes);
+    },
+
+    // FIXME: add tests for quoting
+    quote: function (before)
+    {
+        return '"' + before.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
     },
 
     parse_jid: function(jid) {
