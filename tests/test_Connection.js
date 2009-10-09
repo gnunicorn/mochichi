@@ -4,16 +4,19 @@ if (typeof(tests) == 'undefined') { tests = {}; }
 // some helpers
 function mock_raw_connection(answers, request_checks) {
     // we turn it around so that the pop is easier
+    var sent = []
     answers.reverse();
     request_checks.reverse();
     MochiKit.MochiChi.RawConnection.prototype['send'] = 
       function(dom) {
+        sent.push(dom);
         if (request_checks.length)
           request_checks.pop()(dom);
         return MochiKit.Async.succeed(answers.pop());
       };
 
-    };
+    MochiKit.MochiChi.RawConnection.prototype['__sent'] =  sent;
+  };
 
 function check_first_body(body) {
   is(body.getAttribute('sid'), null);
@@ -32,8 +35,23 @@ function create_response(attrs, nodes){
 }
 
 
-// ACTUAL TESTS
+function create_login_response(mechanisms) {
+    if (!mechanisms)
+      mechanisms = ['DIGEST-MD5', 'PLAIN', 'ANONYMOUS'];
 
+    var children = []
+    for (var i=0; i < mechanisms.length; i++)
+      children.push(MochiKit.DOM.createDOM('Mechanism', {}, [mechanisms[i]]));
+
+    return create_response( {
+        'sid' : 'pocahontas',
+        'authid' : 'test'}, [
+            MochiKit.DOM.createDOM('STREAM:STREAM', {}, children)
+            ]
+          );
+}
+
+// ACTUAL TESTS
 
 tests.test_CreateBodyChangesRequestID = function (t) {
 
@@ -117,5 +135,51 @@ tests.test_SimpleRawConnectStreamMissing = function (t) {
   return dfr
 }
 
+tests.test_ConnectionLoginNoUser = function(t)  {
+  mock_raw_connection([], []);
+  var Connection = new MochiKit.MochiChi.Connection('/service');
+  ok(!Connection.username);
+  Connection._login(create_login_response());
+
+  is(Connection.connection.__sent.length, 1);
+
+  var body = Connection.connection.__sent.pop();
+  var auth = body.firstChild;
+  is(auth.nodeName, 'AUTH');
+  // FIXME: add real name spacing helpers
+  //is(auth.getAttribute('xmlns'), '');
+  is(auth.getAttribute('mechanism'), 'ANONYMOUS');
+
+}
+
+tests.test_ConnectionLoginNoUserNoAnonymous = function(t)  {
+  mock_raw_connection([], []);
+  var Connection = new MochiKit.MochiChi.Connection('/service');
+  ok(!Connection.username);
+  try{
+    Connection._login(create_login_response(['PLAIN']));
+    ok(false, "Login should fail");
+  } catch (error){
+    is(error.split(':',1)[0], 'LoginError');
+    ok(true, "login failed");
+  }
+}
+
+tests.test_ConnectionLoginMD5Preferred = function(t)  {
+  mock_raw_connection([], []);
+  var Connection = new MochiKit.MochiChi.Connection('/service');
+  ok(!Connection.username);
+  Connection.username = "test";
+  Connection._login(create_login_response());
+
+  is(Connection.connection.__sent.length, 1);
+
+  var body = Connection.connection.__sent.pop();
+  var auth = body.firstChild;
+  is(auth.nodeName, 'AUTH');
+  // FIXME: add real name spacing helpers
+  //is(auth.getAttribute('xmlns'), '');
+  is(auth.getAttribute('mechanism'), 'DIGEST-MD5');
 
 
+}
