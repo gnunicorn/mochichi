@@ -20,7 +20,7 @@ function runTest(test_script) {
 }
 
 function runMultipleTests(tests) {
-  for (test in tests) {
-    runTest(test);
+  for (var i=0; i < tests.length; i++) {
+    runTest(tests[i]);
   }
 }
