@@ -49,7 +49,7 @@ MochiKit.MochiChi.RawConnection.prototype =  {
 
       self = this;
       var start_session = function(response) {
-          var body = response.responseXML.documentElement;
+          var body = MochiKit.MochiChi.get_body(response);
           self.session_id = body.getAttribute("sid");
           self.stream_id = body.getAttribute("authid");
           self.set_connected(true);
@@ -59,7 +59,7 @@ MochiKit.MochiChi.RawConnection.prototype =  {
           // we got it by then
 
           if (!body.hasChildNodes()){
-            return self.send(this.create_body({}));
+            return self.send(MochiKit.MochiChi.create_body({}));
             }
           return response;
         };
@@ -68,7 +68,7 @@ MochiKit.MochiChi.RawConnection.prototype =  {
           return response;
         }
 
-      var dfr = this.send(this.create_body(attrs));
+      var dfr = this.send(MochiKit.MochiChi.create_body(attrs));
       dfr.addCallback(start_session)
       //dfr.addCallback(finalize_request)
 
@@ -81,12 +81,9 @@ MochiKit.MochiChi.RawConnection.prototype =  {
     },
 
     request: function(request_dom){
-        console.log("pushing");
         this.spool.push(request_dom);
-        console.log("pushed" + this.spool);
         MochiKit.Async.callLater(0,
             MochiKit.Base.bind(this._schedule_send, this));
-        console.log("done");
     },
     /*send: function(data) {
       this.spool.push(data);
@@ -99,21 +96,6 @@ MochiKit.MochiChi.RawConnection.prototype =  {
               sendContent: MochiKit.DOM.toHTML(dom)}
             );
       },
-
-    create_body: function(attrs, nodes) {
-      var defaults = {
-          xmlns: 'http://jabber.org/protocol/httpbind',
-          rid: this._nextRequestId(),
-        }
-
-      if (this.session_id) {
-        defaults['sid'] = this.session_id;
-      }
-
-      MochiKit.Base.update(attrs, defaults)
-
-    return MochiKit.DOM.createDOM('body', attrs, nodes);
-    },
   
     _send_done: function(result) {
         this.currently_open --;
@@ -122,7 +104,7 @@ MochiKit.MochiChi.RawConnection.prototype =  {
     },
 
     _got_response: function(response) {
-      var body = response.responseXML.documentElement;
+        var body = MochiKit.MochiChi.get_body(response);
       for (child in body.ChildNodes) {
         try {
           MochiKit.Signal.signal(this, 'response', child);
@@ -138,7 +120,7 @@ MochiKit.MochiChi.RawConnection.prototype =  {
       }
       this.currently_open ++;
       var spooled = this.spool;
-      var body = this.create_body({}, spooled);
+      var body = MochiKit.MochiChi.create_body({}, spooled);
       this.spool = [];
 
       var dfr = this.send(body);
@@ -159,7 +141,6 @@ MochiKit.MochiChi.RawConnection.prototype =  {
 
     toString: MochiKit.Base.forwardCall("repr"),
     _nextId: MochiKit.Base.counter(),
-    _nextRequestId: MochiKit.Base.counter(Math.ceil(Math.random() * 10203))
 
   }
 
@@ -227,16 +208,13 @@ MochiKit.MochiChi.Connection.prototype = {
 
     var body = MochiKit.MochiChi.get_body(response);
 
-    console.log("login");
     var plain_allowed = false;
     var digest_md5_allowed = false;
     var anonymous_allowed = false;
 
     var mechanisms = body.getElementsByTagName("mechanism");
-    console.log("mechans" + mechanisms);
     for (var i = 0; i < mechanisms.length; i++) {
         var mech = mechanisms[i].firstChild.nodeValue;
-        console.log(mech);
         if (mech == 'DIGEST-MD5') {
             digest_md5_allowed = true;
         } else if (mech == 'PLAIN') {
@@ -245,7 +223,6 @@ MochiKit.MochiChi.Connection.prototype = {
             anonymous_allowed = true;
         }
       }
-    console.log("allowed");
 
     if (!this.username){
       if (!anonymous_allowed) {
@@ -259,7 +236,6 @@ MochiKit.MochiChi.Connection.prototype = {
       return dfr
 
     } else if (digest_md5_allowed) {
-      console.log("doing md5");
       var request = MochiKit.DOM.createDOM('auth', {
                 xmlns: "urn:ietf:params:xml:ns:xmpp-sasl",
                 mechanism: "DIGEST-MD5"});
@@ -275,11 +251,10 @@ MochiKit.MochiChi.Connection.prototype = {
       throw "LoginError: Unsupported Login Mechanism"
     }
 
-    console.log('test');
   },
 
   _md5_challange: function(response) {
-    var body = response.responseXML.documentElement;
+    var body = MochiKit.MochiChi.get_body(response);
     var challenge = body.firstChild;
     if (challenge.nodeName !== "challenge") {
       throw "ERROR";
@@ -300,6 +275,22 @@ MochiKit.Base.update(MochiKit.MochiChi, {
     get_body: function(response) {
       return response.responseXML.documentElement;
     },
+
+    create_body: function(attrs, nodes) {
+      var defaults = {
+          xmlns: 'http://jabber.org/protocol/httpbind',
+          rid: MochiKit.MochiChi._nextRequestId(),
+        }
+
+      if (this.session_id) {
+        defaults['sid'] = this.session_id;
+      }
+
+      MochiKit.Base.update(attrs, defaults)
+
+    return MochiKit.DOM.createDOM('body', attrs, nodes);
+    },
+
     parse_jid: function(jid) {
       var results = {
         user: null,
@@ -321,5 +312,6 @@ MochiKit.Base.update(MochiKit.MochiChi, {
       results['domain'] = splitted_resource.pop();
 
     return results
-    }
+    },
+    _nextRequestId: MochiKit.Base.counter(Math.ceil(Math.random() * 10203))
 });

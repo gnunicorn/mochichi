@@ -53,20 +53,6 @@ function create_login_response(mechanisms) {
 
 // ACTUAL TESTS
 
-tests.test_CreateBodyChangesRequestID = function (t) {
-
-  var raw = new MochiKit.MochiChi.RawConnection('/whatever');
-
-  var bodyA = raw.create_body({}, []);
-  var bodyB = raw.create_body();
-  var bodyC = raw.create_body({});
-
-  // they all must be different
-  ok(bodyA.getAttribute('rid') != bodyB.getAttribute('rid'));
-  ok(bodyB.getAttribute('rid') != bodyC.getAttribute('rid'));
-  ok(bodyA.getAttribute('rid') != bodyC.getAttribute('rid'));
-
-}
 tests.test_SimpleRawConnect = function (t) {
   var answers = [
     create_response( {
@@ -180,6 +166,4 @@ tests.test_ConnectionLoginMD5Preferred = function(t)  {
   // FIXME: add real name spacing helpers
   //is(auth.getAttribute('xmlns'), '');
   is(auth.getAttribute('mechanism'), 'DIGEST-MD5');
-
-
 }

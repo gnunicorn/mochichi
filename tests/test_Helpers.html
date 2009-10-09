@@ -4,13 +4,19 @@
     <script type="text/javascript" src="../MochiChi/MochiChi.js"></script>
     <script type="text/javascript" src="../mochikit/tests/SimpleTest/SimpleTest.js"></script>
     <script type="text/javascript" src="test_Parsing.js"></script>
+    <script type="text/javascript" src="test_CreateBody.js"></script>
+    <script type="text/javascript" src="test_GetBody.js"></script>
     <link rel="stylesheet" type="text/css" href="../mochikit/tests/SimpleTest/test.css">
 </head>
 <body>
 <pre id="test">
 <script type="text/javascript" src="base.js"></script>
 <script type="text/javascript">
-runTest(tests.test_Parsing);
+runMultipleTests([
+		tests.test_Parsing,
+		tests.test_CreateBody,
+		tests.test_GetBody
+		]);
 </script>
 </pre>
 </body>
