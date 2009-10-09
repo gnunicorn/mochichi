@@ -8,25 +8,9 @@
 </head>
 <body>
 <pre id="test">
+<script type="text/javascript" src="base.js"></script>
 <script type="text/javascript">
-try {
-    SimpleTest.saveScope(this);
-    tests.test_Parsing({ok:ok,is:is});
-    SimpleTest.verifyScope(this);
-    ok( true, "test suite finished!");
-} catch (err) {
-    var s = "test suite failure!\n";
-    var o = {};
-    var k = null;
-    for (k in err) {
-        // ensure unique keys?!
-        if (!o[k]) {
-            s +=  k + ": " + err[k] + "\n";
-            o[k] = err[k];
-        }
-    }
-    ok ( false, s );
-}
+runTest(tests.test_Parsing);
 </script>
 </pre>
 </body>
