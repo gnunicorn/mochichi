@@ -273,7 +273,21 @@ MochiKit.MochiChi.Connection.prototype = {
 
 MochiKit.Base.update(MochiKit.MochiChi, {
     get_body: function(response) {
-      return response.responseXML.documentElement;
+      var body = null;
+      try {
+        body = response.responseXML.documentElement;
+      } catch(err) {
+        body = response;
+      }
+
+      try {
+        if (!body.nodeName || body.nodeName.toUpperCase() !== 'BODY')
+          throw "NoBodyElementFound";
+      } catch(err) {
+        throw err;
+      }
+
+      return body;
     },
 
     create_body: function(attrs, nodes) {
