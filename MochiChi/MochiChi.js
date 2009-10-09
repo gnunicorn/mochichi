@@ -231,7 +231,7 @@ MochiKit.MochiChi.Connection.prototype = {
       var request = MochiKit.DOM.createDOM('auth', {
                 xmlns: "urn:ietf:params:xml:ns:xmpp-sasl",
                 mechanism: "ANONYMOUS"});
-      var dfr = this.connection.send(this.connection.create_body({}, [request]));
+      var dfr = this.connection.send(MochiKit.MochiChi.create_body({}, [request]));
       dfr.addCallback(MochiKit.Base.bind(this._got_auth, this));
       return dfr
 
@@ -239,8 +239,8 @@ MochiKit.MochiChi.Connection.prototype = {
       var request = MochiKit.DOM.createDOM('auth', {
                 xmlns: "urn:ietf:params:xml:ns:xmpp-sasl",
                 mechanism: "DIGEST-MD5"});
-      var dfr = this.connection.send(this.connection.create_body({}, [request]));
-      dfr.addCallback(MochiKit.Base.bind(this._md5_challange, this));
+      var dfr = this.connection.send(MochiKit.MochiChi.create_body({}, [request]));
+      dfr.addCallback(MochiKit.Base.bind(this._md5_challenge, this));
       dfr.addCallback(MochiKit.Base.bind(this._got_auth, this));
       return dfr
 
@@ -253,7 +253,7 @@ MochiKit.MochiChi.Connection.prototype = {
 
   },
 
-  _md5_challange: function(response) {
+  _md5_challenge: function(response) {
     var body = MochiKit.MochiChi.get_body(response);
     var challenge = body.firstChild;
     if (challenge.nodeName !== "challenge") {
