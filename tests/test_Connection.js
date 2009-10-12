@@ -146,7 +146,7 @@ tests.test_ConnectionLoginNoUserNoAnonymous = function(t)  {
     Connection._login(create_login_response(['PLAIN']));
     ok(false, "Login should fail");
   } catch (error){
-    is(error.split(':',1)[0], 'LoginError');
+    is(error.name, 'LoginError');
     ok(true, "login failed");
   }
 }

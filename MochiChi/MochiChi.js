@@ -201,7 +201,7 @@ MochiKit.MochiChi.Connection.prototype = {
         return true
     }
 
-    throw "LoginError:" + child.nodeName;
+    throw {name: "LoginError", message: child.nodeName};
 
   },
 
@@ -230,7 +230,7 @@ MochiKit.MochiChi.Connection.prototype = {
 
     if (!this.username){
       if (!anonymous_allowed) {
-        throw "LoginError: Anonymous login forbidden";
+        throw {name: "LoginError", message: "Anonymous login forbidden"};
       }
       var request = MochiKit.DOM.createDOM('auth', {
                 xmlns: "urn:ietf:params:xml:ns:xmpp-sasl",
@@ -249,10 +249,10 @@ MochiKit.MochiChi.Connection.prototype = {
       return dfr
 
     } else if (plain_allowed) {
-      throw "NotImplemented: plain text isn't implemented yet";
+      throw {name: "NotImplemented", message: "plain text isn't implemented yet"};
 
     } else {
-      throw "LoginError: Unsupported Login Mechanism"
+      throw {name: "LoginError", message: "Unsupported Login Mechanism"};
     }
 
   },
@@ -262,7 +262,7 @@ MochiKit.MochiChi.Connection.prototype = {
     var challenge = body.firstChild;
     console.log(challenge);
     if (challenge.nodeName.toUpperCase() !== "CHALLENGE") {
-      throw "ERROR:" + challenge.nodeName;
+      throw {name: "ERROR", message: challenge.nodeName};
     }
     var key = challenge.firstChild.nodeValue;
     console.log(key);
@@ -332,7 +332,7 @@ MochiKit.MochiChi.Connection.prototype = {
       var body = MochiKit.MochiChi.get_body(response);
       var challenge = body.firstChild;
       if (!challenge || challenge.nodeName.toUpperCase() !== 'CHALLENGE') {
-        throw "LoginFailed:" + challenge;
+        throw {name: "LoginFailed", message: challenge};
       }
       var resp = MochiKit.DOM.createDOM('response', {
             xmlns: "urn:ietf:params:xml:ns:xmpp-sasl"});
@@ -360,7 +360,7 @@ MochiKit.Base.update(MochiKit.MochiChi, {
       }
 
       if (!body.nodeName || body.nodeName.toUpperCase() !== 'BODY')
-        throw "NoBodyElementFound";
+        throw {name: "NoBodyElementFound"};
 
       return body;
     },

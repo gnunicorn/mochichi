@@ -34,7 +34,7 @@ tests.test_GetBody = function(t) {
     var got_body = MochiKit.MochiChi.get_body(response);
     ok(false, "could spoof non-body element into it!");
   } catch(error) {
-    is(error, 'NoBodyElementFound');
+    is(error.name, 'NoBodyElementFound');
   }
 
   // now we directly pass a body element and want to have it back
@@ -48,7 +48,7 @@ tests.test_GetBody = function(t) {
     var got_body = MochiKit.MochiChi.get_body(wrong);
     ok(false, "could spoof non-body element into it!");
   } catch(error) {
-    is(error, 'NoBodyElementFound');
+    is(error.name, 'NoBodyElementFound');
   }
 
   // but it also fails if there is a wrong response in it,
@@ -57,7 +57,7 @@ tests.test_GetBody = function(t) {
     var got_body = MochiKit.MochiChi.get_body({});
     ok(false, "there was no response!!!");
   } catch(error) {
-    is(error, 'NoBodyElementFound');
+    is(error.name, 'NoBodyElementFound');
   }
 
 
