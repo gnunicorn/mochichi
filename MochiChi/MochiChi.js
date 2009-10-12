@@ -233,7 +233,7 @@ MochiKit.MochiChi.Connection.prototype = {
         throw {name: "LoginError", message: "Anonymous login forbidden"};
       }
       var request = MochiKit.DOM.createDOM('auth', {
-                xmlns: "urn:ietf:params:xml:ns:xmpp-sasl",
+                xmlns: MochiKit.MochiChi.NS.sasl,
                 mechanism: "ANONYMOUS"});
       var dfr = this.connection.send(MochiKit.MochiChi.create_body({}, [request]));
       dfr.addCallback(MochiKit.Base.bind(this._got_auth, this));
@@ -241,7 +241,7 @@ MochiKit.MochiChi.Connection.prototype = {
 
     } else if (digest_md5_allowed) {
       var request = MochiKit.DOM.createDOM('auth', {
-                xmlns: "urn:ietf:params:xml:ns:xmpp-sasl",
+                xmlns: MochiKit.MochiChi.NS.sasl,
                 mechanism: "DIGEST-MD5"});
       var dfr = this.connection.send(MochiKit.MochiChi.create_body({}, [request]));
       dfr.addCallback(MochiKit.Base.bind(this._md5_challenge, this));
@@ -322,7 +322,7 @@ MochiKit.MochiChi.Connection.prototype = {
 
     console.log(responseText);
     var response = MochiKit.DOM.createDOM('response', {
-            xmlns: "urn:ietf:params:xml:ns:xmpp-sasl"
+                xmlns: MochiKit.MochiChi.NS.sasl,
             }, [MochiKit.Crypt.encode64(responseText)]);
 
     var dfr = this.connection.send(MochiKit.MochiChi.create_body({}, [response]));
@@ -335,7 +335,8 @@ MochiKit.MochiChi.Connection.prototype = {
         throw {name: "LoginFailed", message: challenge};
       }
       var resp = MochiKit.DOM.createDOM('response', {
-            xmlns: "urn:ietf:params:xml:ns:xmpp-sasl"});
+                xmlns: MochiKit.MochiChi.NS.sasl,
+            });
       return self.connection.send(MochiKit.MochiChi.create_body({}, [resp]));
     }
 
@@ -351,6 +352,11 @@ MochiKit.MochiChi.Connection.prototype = {
 }
 
 MochiKit.Base.update(MochiKit.MochiChi, {
+    // Namespace we support/know of:
+    NS: {
+      httpbind: 'http://jabber.org/protocol/httpbind',
+      sasl: "urn:ietf:params:xml:ns:xmpp-sasl"
+    },
     get_body: function(response) {
       var body = null;
       try {
@@ -367,7 +373,7 @@ MochiKit.Base.update(MochiKit.MochiChi, {
 
     create_body: function(attrs, nodes) {
       var defaults = {
-          xmlns: 'http://jabber.org/protocol/httpbind',
+          xmlns: MochiKit.MochiChi.NS.httpbind,
           rid: MochiKit.MochiChi._nextRequestId(),
         }
 
