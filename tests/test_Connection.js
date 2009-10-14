@@ -34,6 +34,29 @@ function create_response(attrs, nodes){
   return response
 }
 
+function check_response_string(incoming, reference){
+    var splitted = incoming.split(',');
+    var left_over = {};
+    for (var i=0; i < splitted.length; i ++) {
+      var two_parts = splitted[i].split('=',2);
+      var key = two_parts[0];
+      var value = two_parts[1];
+      if (value[0] === '"'){
+        // surrounded by " remove them
+        value = value.slice(1, value.length-1);
+      }
+      if (typeof(reference[key]) === 'undefined'){
+        left_over[key] = value;
+      } else {
+        is(reference[key], value);
+        delete reference[key];
+      }
+    }
+
+    // check also whether all have been found
+    is([x for (x in reference)].length, 0);
+    return left_over;
+  }
 
 function create_login_response(mechanisms) {
     if (!mechanisms)
@@ -166,4 +189,88 @@ tests.test_ConnectionLoginMD5Preferred = function(t)  {
   // FIXME: add real name spacing helpers
   //is(auth.getAttribute('xmlns'), '');
   is(auth.getAttribute('mechanism'), 'DIGEST-MD5');
+}
+
+tests.test_ConnectionLoginMD5 = function(t) {
+  mock_raw_connection([], []);
+  var Connection = new MochiKit.MochiChi.Connection('/service');
+  ok(!Connection.username);
+  Connection.username = 'my_user';
+  Connection.server = 'jabber.com';
+  Connection.password = 'test_password';
+
+  var key = MochiKit.Crypt.encode64('nonce="3488040084",qop="auth",charset=utf-8,algorithm=md5-sess');
+  var response = create_response({},
+        [MochiKit.DOM.createDOM('challenge', {}, [key])]
+      );
+  console.log(response)
+  var dfr = Connection._md5_challenge(response);
+
+  is(Connection.connection.__sent.length, 1);
+
+  var body = Connection.connection.__sent.pop();
+  var auth = body.firstChild;
+  is(auth.nodeName, 'RESPONSE');
+  // FIXME: add real name spacing helpers
+  //is(auth.getAttribute('xmlns'), '');
+  var result_key = auth.firstChild.nodeValue;
+  var decoded = MochiKit.Crypt.decode64(result_key);
+  console.log(decoded);
+  var results = check_response_string(decoded,
+      {'username' : 'my_user',
+       'realm': '',
+       'nonce': "3488040084",
+       'qop': "auth",
+       'charset': "utf-8",
+       'digest-uri': 'xmpp/jabber.com'
+      });
+  var cnonce = results['cnonce'];
+  var response = results['response'];
+  console.log(cnonce);
+  var expected_one = MochiKit.Crypt.str_md5("my_user::test_password") +  ":3488040084:"+ cnonce;
+  is(response, MochiKit.Crypt.hex_md5(MochiKit.Crypt.hex_md5(expected_one) +
+              ":3488040084:00000001:" + cnonce + ":auth:" +
+              MochiKit.Crypt.hex_md5('AUTHENTICATE:xmpp/jabber.com')));
+}
+tests.test_ConnectionLoginMD5BetterTwice = function(t) {
+  mock_raw_connection([], []);
+  var Connection = new MochiKit.MochiChi.Connection('/service');
+  ok(!Connection.username);
+  Connection.username = 'other_user';
+  Connection.server = 'jabber.org';
+  Connection.password = 'good_password';
+
+  var key = MochiKit.Crypt.encode64('nonce=abcd1234,qop=auth,charset="utf-8",algorithm="md5-sess",realm="your father"');
+  var response = create_response({},
+        [MochiKit.DOM.createDOM('challenge', {}, [key])]
+      );
+  console.log(response)
+  var dfr = Connection._md5_challenge(response);
+
+  is(Connection.connection.__sent.length, 1);
+
+  var body = Connection.connection.__sent.pop();
+  var auth = body.firstChild;
+  is(auth.nodeName, 'RESPONSE');
+  // FIXME: add real name spacing helpers
+  //is(auth.getAttribute('xmlns'), '');
+  var result_key = auth.firstChild.nodeValue;
+  var decoded = MochiKit.Crypt.decode64(result_key);
+  console.log(decoded);
+  var results = check_response_string(decoded,
+      {'username' : 'other_user',
+       'realm': 'your father',
+       'nonce': "abcd1234",
+       'qop': "auth",
+       'charset': "utf-8",
+       'digest-uri': 'xmpp/jabber.org'
+      });
+  var cnonce = results['cnonce'];
+  var response = results['response'];
+  console.log(cnonce);
+  var expected_one = MochiKit.Crypt.str_md5("other_user:your father:good_password") +  ":abcd1234:"+ cnonce;
+  is(response, MochiKit.Crypt.hex_md5(MochiKit.Crypt.hex_md5(expected_one) +
+              ":abcd1234:00000001:" + cnonce + ":auth:" +
+              MochiKit.Crypt.hex_md5('AUTHENTICATE:xmpp/jabber.org')));
+
 }

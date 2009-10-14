@@ -281,7 +281,7 @@ MochiKit.MochiChi.Connection.prototype = {
       }
 
     MochiKit.Logging.log(challenge);
-    splitted = challenge.split(',');
+    var splitted = challenge.split(',');
     for (var i=0; i < splitted.length; i ++) {
       var two_parts = splitted[i].split('=',2);
       var key = two_parts[0];
@@ -311,7 +311,7 @@ MochiKit.MochiChi.Connection.prototype = {
     MochiKit.Logging.log(A1);
     MochiKit.Logging.log(A2);
 
-    quote = MochiKit.MochiChi.quote
+    var quote = MochiKit.MochiChi.quote
 
     var responseText = 'username=' + quote(this.username) + 
       ',realm=' + quote(incoming.realm) + ',nonce=' +
