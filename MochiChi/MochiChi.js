@@ -6,7 +6,7 @@ MochiKit.MochiChi 1.5
 
 ***/
 
-MochiKit.Base._module('MochiChi', '1.5', ['Base', 'Async', 'Signal', 'DOM', 'Crypt']);
+MochiKit.Base._module('MochiChi', '1.5', ['Base', 'Async', 'Signal', 'DOM', 'Crypt', 'Logging']);
 
 /** @id MochiKit.MochiChi.Connection
  * 
@@ -117,7 +117,7 @@ MochiKit.MochiChi.RawConnection.prototype =  {
         try {
           MochiKit.Signal.signal(this, 'response', child);
         } catch(error) {
-          console.log(error);
+          MochiKit.Logging.warning(error);
         }
       }
     },
@@ -189,11 +189,11 @@ MochiKit.MochiChi.Connection.prototype = {
   },
 
   _handle_response: function(DOM){
-    console.log("got" + DOM)
+    MochiKit.Logging.log("got" + DOM)
   },
 
   _got_auth: function(response) {
-    console.log(response);
+    MochiKit.Logging.log(response);
     var body = MochiKit.MochiChi.get_body(response);
     var child = body.firstChild;
     if (!child){
@@ -263,12 +263,12 @@ MochiKit.MochiChi.Connection.prototype = {
   _md5_challenge: function(response) {
     var body = MochiKit.MochiChi.get_body(response);
     var challenge = body.firstChild;
-    console.log(challenge);
+    MochiKit.Logging.log(challenge);
     if (challenge.nodeName.toUpperCase() !== "CHALLENGE") {
       throw {name: "ERROR", message: challenge.nodeName};
     }
     var key = challenge.firstChild.nodeValue;
-    console.log(key);
+    MochiKit.Logging.log(key);
 
     //return response;
 
@@ -280,7 +280,7 @@ MochiKit.MochiChi.Connection.prototype = {
       qop: null
       }
 
-    console.log(challenge);
+    MochiKit.Logging.log(challenge);
     splitted = challenge.split(',');
     for (var i=0; i < splitted.length; i ++) {
       var two_parts = splitted[i].split('=',2);
@@ -291,7 +291,7 @@ MochiKit.MochiChi.Connection.prototype = {
         value = value.slice(1, value.length-1);
       }
       incoming[key] = value;
-      console.log(key + "=" + value);
+      MochiKit.Logging.log(key + "=" + value);
     }
 
     var cnonce = MochiKit.Crypt.hex_md5(Math.random() * 1234567890);
@@ -301,15 +301,15 @@ MochiKit.MochiChi.Connection.prototype = {
         digest_uri = digest_uri + "/" + host;
     }
 
-    console.log(this.username);
-    console.log(this.password);
+    MochiKit.Logging.log(this.username);
+    MochiKit.Logging.log(this.password);
     var A1 = MochiKit.Crypt.str_md5(this.username + ":" +
             incoming.realm + ":" + this.password) +
         ":" + incoming.nonce + ":" + cnonce;
     var A2 = 'AUTHENTICATE:' + digest_uri;
 
-    console.log(A1);
-    console.log(A2);
+    MochiKit.Logging.log(A1);
+    MochiKit.Logging.log(A2);
 
     quote = MochiKit.MochiChi.quote
 
@@ -323,7 +323,7 @@ MochiKit.MochiChi.Connection.prototype = {
               MochiKit.Crypt.hex_md5(A2))
         ) + ',charset="utf-8"';
 
-    console.log(responseText);
+    MochiKit.Logging.log(responseText);
     var response = MochiKit.DOM.createDOM('response', {
                 xmlns: MochiKit.MochiChi.NS.sasl,
             }, [MochiKit.Crypt.encode64(responseText)]);
