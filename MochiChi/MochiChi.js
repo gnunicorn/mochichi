@@ -100,6 +100,10 @@ MochiKit.MochiChi.RawConnection.prototype =  {
               sendContent: MochiKit.DOM.toHTML(dom)}
             );
       },
+
+    simple_send: function(objects) {
+      return this.send(MochiKit.MochiChi.create_body({}, objects));
+    },
   
     _send_done: function(result) {
         this.currently_open --;
@@ -124,10 +128,9 @@ MochiKit.MochiChi.RawConnection.prototype =  {
       }
       this.currently_open ++;
       var spooled = this.spool;
-      var body = MochiKit.MochiChi.create_body({}, spooled);
       this.spool = [];
 
-      var dfr = this.send(body);
+      var dfr = this.simple_send(spooled);
       dfr.addBoth(MochiKit.Base.bind(this._send_done, this))
       dfr.addCallback(MochiKit.Base.bind(this._got_response, this))
       return dfr
@@ -235,7 +238,7 @@ MochiKit.MochiChi.Connection.prototype = {
       var request = MochiKit.DOM.createDOM('auth', {
                 xmlns: MochiKit.MochiChi.NS.sasl,
                 mechanism: "ANONYMOUS"});
-      var dfr = this.connection.send(MochiKit.MochiChi.create_body({}, [request]));
+      var dfr = this.connection.simple_send([request]);
       dfr.addCallback(MochiKit.Base.bind(this._got_auth, this));
       return dfr
 
@@ -243,7 +246,7 @@ MochiKit.MochiChi.Connection.prototype = {
       var request = MochiKit.DOM.createDOM('auth', {
                 xmlns: MochiKit.MochiChi.NS.sasl,
                 mechanism: "DIGEST-MD5"});
-      var dfr = this.connection.send(MochiKit.MochiChi.create_body({}, [request]));
+      var dfr = this.connection.simple_send([request]);
       dfr.addCallback(MochiKit.Base.bind(this._md5_challenge, this));
       dfr.addCallback(MochiKit.Base.bind(this._got_auth, this));
       return dfr
@@ -325,7 +328,7 @@ MochiKit.MochiChi.Connection.prototype = {
                 xmlns: MochiKit.MochiChi.NS.sasl,
             }, [MochiKit.Crypt.encode64(responseText)]);
 
-    var dfr = this.connection.send(MochiKit.MochiChi.create_body({}, [response]));
+    var dfr = this.connection.simple_send([response]);
 
     var self = this;
     function got_rsp(response){
@@ -337,7 +340,7 @@ MochiKit.MochiChi.Connection.prototype = {
       var resp = MochiKit.DOM.createDOM('response', {
                 xmlns: MochiKit.MochiChi.NS.sasl,
             });
-      return self.connection.send(MochiKit.MochiChi.create_body({}, [resp]));
+      return self.connection.simple_send([resp]);
     }
 
     dfr.addCallback(got_rsp)
