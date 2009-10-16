@@ -72,8 +72,6 @@ MochiKit.MochiChi.RawConnection.prototype =  {
 
       var dfr = this.send(MochiKit.MochiChi.create_body(attrs));
       dfr.addCallback(start_session)
-      //dfr.addCallback(finalize_request)
-
       return dfr;
     },
 
@@ -87,11 +85,7 @@ MochiKit.MochiChi.RawConnection.prototype =  {
         MochiKit.Async.callLater(0,
             MochiKit.Base.bind(this._schedule_send, this));
     },
-    /*send: function(data) {
-      this.spool.push(data);
-      this._schedule_send();
-    },
-    */
+
     send: function(dom) {
       if (this.session_id) {
         dom.setAttribute('sid', this.session_id);
@@ -110,7 +104,7 @@ MochiKit.MochiChi.RawConnection.prototype =  {
     _send_done: function(result) {
         if (this.errors >= 3) {
           this.set_connected(false);
-          throw {name:'ConnectionLost'};
+          throw {name: 'ConnectionLost'};
         }
         this.currently_open --;
         this._schedule_send();
