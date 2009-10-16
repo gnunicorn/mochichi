@@ -123,7 +123,6 @@ MochiKit.MochiChi.RawConnection.prototype =  {
     },
 
     _got_response: function(response) {
-      console.log("tu ich doch");
       this.erors = 0;
       var body = MochiKit.MochiChi.get_body(response);
 
