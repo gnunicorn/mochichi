@@ -191,7 +191,13 @@ MochiKit.MochiChi.RawConnection.prototype =  {
  * 
  * signals:
  *      state - the current state the Connection is in
- *      
+ *      unknown-iq - received an IQ without any known request. If expect some of
+ *                   those IQs to come in (e.g. for roster-set) connect to this
+ *                   signal and handled it please.
+ *      unknown-message - didn't find any message handler for this message. If
+ *                   you expect these kind of messages to come in and want to
+ *                   handle them connect to this signal.
+
  * */
 MochiKit.MochiChi.Connection = function(service_url) {
     this.jid = null;
@@ -203,7 +209,10 @@ MochiKit.MochiChi.Connection = function(service_url) {
     this.presence = new MochiKit.MochiChi.Presence(this);
 
     // For IQ management
-    this.iq_deferreds = {}
+    this.iq_deferreds = {};
+
+    // message management is fun
+    this.msg_handlers = [];
 
     MochiKit.Signal.connect(this.connection, 'connected', console.log);
   }
@@ -254,8 +263,7 @@ MochiKit.MochiChi.Connection.prototype = {
     dfr = this.iq_deferreds[id];
     delete this.iq_deferreds[id];
     if (!dfr) {
-      MochiKit.Logging.warning("Got unrequested iq: " + DOM + ". Something is going wrong here");
-      return;
+      MochiKit.Signal.signal(this, 'unknown-iq', DOM);
     }
     
     var typ = DOM.getAttribute('type');
@@ -267,6 +275,7 @@ MochiKit.MochiChi.Connection.prototype = {
 
   _handle_message_response: function(DOM) {
     MochiKit.Logging.warning("message " + DOM);
+    MochiKit.Signal.signal(this, 'unknown-message', DOM);
   },
 
   _handle_presence_response: function(DOM) {
