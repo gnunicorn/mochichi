@@ -7,18 +7,11 @@
 <body>
 <pre id="test">
 <script type="text/javascript">
-function send_available(my_user, rs)
-{
-	console.log("sent presence");
-	return my_user.presence.available()
-}
 try {
 	console.log('started');
 	var my_user = new MochiKit.MochiChi.Connection('/xmpp-httpbind');
 	console.log('yay');
 	dfr = my_user.connect('webtest@localhost', 'pass');
-	dfr.addCallback(MochiKit.Base.bind(my_user.start_loop, my_user));
-	dfr.addCallback(send_available, my_user);
 	dfr.addErrback(console.log);
 	console.log("yep" + dfr);
 } catch (err) {

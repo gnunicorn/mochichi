@@ -123,13 +123,16 @@ MochiKit.MochiChi.RawConnection.prototype =  {
     },
 
     _got_response: function(response) {
+      console.log("tu ich doch");
       this.erors = 0;
       var body = MochiKit.MochiChi.get_body(response);
 
       var self = this;
       function process_nodes() {
-        for (child in body.ChildNodes) {
+        var nodes = body.childNodes;
+        for (var i=0; i < nodes.length; i++) {
           try {
+            var child = nodes[i];
             MochiKit.Signal.signal(self, 'response', child);
           } catch(error) {
             MochiKit.Logging.warning(error);
@@ -149,7 +152,8 @@ MochiKit.MochiChi.RawConnection.prototype =  {
     },
 
     _schedule_send: function() {
-      if (!this.connected || (this.spool.length === 0 && this.currently_open >= this.hold)) {
+      if (!this.connected ||
+            (this.spool.length === 0 && this.currently_open >= this.hold)) {
         return
       }
       this.currently_open ++;
@@ -191,10 +195,17 @@ MochiKit.MochiChi.RawConnection.prototype =  {
  *      
  * */
 MochiKit.MochiChi.Connection = function(service_url) {
-    this.connection = new MochiKit.MochiChi.RawConnection(service_url);
-    this.presence = new MochiKit.MochiChi.Presence(this);
     this.jid = null;
     this.password = null;
+
+    this.connection = new MochiKit.MochiChi.RawConnection(service_url);
+
+    // for presence management
+    this.presence = new MochiKit.MochiChi.Presence(this);
+
+    // For IQ management
+    this.iq_deferreds = {}
+
     MochiKit.Signal.connect(this.connection, 'connected', console.log);
   }
 
@@ -221,9 +232,12 @@ MochiKit.MochiChi.Connection.prototype = {
       return dfr
   },
 
-  start_loop: function(smth) {
-    this.connection._schedule_send();
-    return smth
+  send_iq: function(attrs, nodes) {
+    var iq = MochiKit.MochiChi.create_iq(attrs, nodes);
+    var dfr = new MochiKit.Async.Deferred();
+    this.iq_deferreds[iq.getAttribute('id')] = dfr;
+    this.send(iq);
+    return dfr
   },
 
   send: function(DOM) {
@@ -231,7 +245,38 @@ MochiKit.MochiChi.Connection.prototype = {
   },
 
   _handle_response: function(DOM){
-    MochiKit.Logging.log("got" + DOM)
+    MochiKit.Logging.log("got " + DOM.nodeName)
+    this['_handle_' + DOM.nodeName.toLowerCase() + '_response'](DOM);
+  },
+  
+  _handle_iq_response: function(DOM) {
+    MochiKit.Logging.log("iq " + DOM);
+    var id = DOM.getAttribute('id');
+    dfr = this.iq_deferreds[id];
+    delete this.iq_deferreds[id];
+    if (!dfr) {
+      MochiKit.Logging.warning("Got unrequested iq: " + DOM + ". Something is going wrong here");
+      return;
+    }
+    
+    var typ = DOM.getAttribute('type');
+    if (typ.toUpperCase() === "RESULT"){
+      return dfr.callback(DOM);
+    }
+    return dfr.errback(DOM);
+  },
+
+  _handle_message_response: function(DOM) {
+    MochiKit.Logging.warning("message " + DOM);
+  },
+
+  _handle_presence_response: function(DOM) {
+    MochiKit.Logging.warning("presence " + DOM);
+  },
+
+  _features_done: function(iq_response) {
+    var features = MochiKit.MochiChi.get_child(iq_response, 'bind')
+    console.log("features done");
   },
 
   _feature_setup: function (response) {
@@ -241,12 +286,13 @@ MochiKit.MochiChi.Connection.prototype = {
     var bind = MochiKit.MochiChi.get_child(features, 'bind');
     //var session = MochiKit.MochiChi.get_child(features, 'session');
 
-    var iq = MochiKit.MochiChi.create_iq({type: 'set'}, [
+    var dfr = this.send_iq({type: 'set'}, [
         MochiKit.DOM.createDOM('bind', {'xmlns': MochiKit.MochiChi.NS.bind}, [
             MochiKit.DOM.createDOM('resource', {}, [this.resource])
           ])
         ]);
-    return this.connection.simple_send([iq]);
+    dfr.addCallback(MochiKit.Base.bind(this._features_done, this));
+    return dfr
   },
 
   _got_auth: function(response) {
