@@ -29,6 +29,8 @@ MochiKit.MochiChi.RawConnection = function (url) {
     this.hold = 1; // this should not be changed ever
     this.currently_open = 0;
 
+    // internal for error handling
+    this.errors = 0;
   }
 
 MochiKit.MochiChi.RawConnection.prototype =  {
@@ -106,24 +108,48 @@ MochiKit.MochiChi.RawConnection.prototype =  {
     },
   
     _send_done: function(result) {
+        if (this.errors >= 3) {
+          this.set_connected(false);
+          throw {name:'ConnectionLost'};
+        }
         this.currently_open --;
         this._schedule_send();
         return result
     },
 
+    _got_error: function(error) {
+      console.log("Got an error:" + error);
+      this.errors ++;
+    },
+
     _got_response: function(response) {
-        var body = MochiKit.MochiChi.get_body(response);
-      for (child in body.ChildNodes) {
-        try {
-          MochiKit.Signal.signal(this, 'response', child);
-        } catch(error) {
-          MochiKit.Logging.warning(error);
+      this.erors = 0;
+      var body = MochiKit.MochiChi.get_body(response);
+
+      var self = this;
+      function process_nodes() {
+        for (child in body.ChildNodes) {
+          try {
+            MochiKit.Signal.signal(self, 'response', child);
+          } catch(error) {
+            MochiKit.Logging.warning(error);
+          }
         }
       }
+
+      // schedule childNode iteration for the next loop
+      MochiKit.Async.callLater(0, process_nodes);
+
+      if (body.getAttribute('type').toUpperCase() === 'TERMINATE') {
+        // we got terminated
+        console.log(body.getAttribute('condition'));
+        this.set_connected(false);
+      }
+
     },
 
     _schedule_send: function() {
-      if (this.currently_open > this.hold){
+      if (!this.connected || (this.spool.length === 0 && this.currently_open >= this.hold)) {
         return
       }
       this.currently_open ++;
@@ -131,8 +157,14 @@ MochiKit.MochiChi.RawConnection.prototype =  {
       this.spool = [];
 
       var dfr = this.simple_send(spooled);
+      dfr.addCallbacks(
+          // Callback
+          MochiKit.Base.bind(this._got_response, this),
+          // Errback
+          MochiKit.Base.bind(this._got_error, this)
+            )
+
       dfr.addBoth(MochiKit.Base.bind(this._send_done, this))
-      dfr.addCallback(MochiKit.Base.bind(this._got_response, this))
       return dfr
     },
 
@@ -160,6 +192,7 @@ MochiKit.MochiChi.RawConnection.prototype =  {
  * */
 MochiKit.MochiChi.Connection = function(service_url) {
     this.connection = new MochiKit.MochiChi.RawConnection(service_url);
+    this.presence = new MochiKit.MochiChi.Presence(this);
     this.jid = null;
     this.password = null;
     MochiKit.Signal.connect(this.connection, 'connected', console.log);
@@ -176,35 +209,65 @@ MochiKit.MochiChi.Connection.prototype = {
       this.resource = parsed['resource'] ? parsed['resource'] : 'MochiChi';
 
       var dfr = null;
-      if (!this.connection.connected) {
-        dfr = this.connection.connect(this.server);
-        MochiKit.Signal.connect(this.connection, 'response',
-            MochiKit.Base.bind(this._handle_response, this))
-      } else {
-        dfr = MochiKit.Async.succeed('done');
+      if (this.connection.connected) {
+        throw {name: "UnsupportedError", message:"already connected"}
       }
+
+      dfr = this.connection.connect(this.server);
+      MochiKit.Signal.connect(this.connection, 'response',
+                MochiKit.Base.bind(this._handle_response, this))
+
       dfr.addCallback(MochiKit.Base.bind(this._login, this));
-      dfr.addCallback(MochiKit.Base.bind(this.connection._schedule_send, this.connection));
       return dfr
+  },
+
+  start_loop: function(smth) {
+    this.connection._schedule_send();
+    return smth
+  },
+
+  send: function(DOM) {
+    return this.connection.request(DOM);
   },
 
   _handle_response: function(DOM){
     MochiKit.Logging.log("got" + DOM)
   },
 
+  _feature_setup: function (response) {
+    var features = MochiKit.MochiChi.get_child(
+        MochiKit.MochiChi.get_body(response), 'stream:features');
+
+    var bind = MochiKit.MochiChi.get_child(features, 'bind');
+    //var session = MochiKit.MochiChi.get_child(features, 'session');
+
+    var iq = MochiKit.MochiChi.create_iq({type: 'set'}, [
+        MochiKit.DOM.createDOM('bind', {'xmlns': MochiKit.MochiChi.NS.bind}, [
+            MochiKit.DOM.createDOM('resource', {}, [this.resource])
+          ])
+        ]);
+    return this.connection.simple_send([iq]);
+  },
+
   _got_auth: function(response) {
     MochiKit.Logging.log(response);
     var body = MochiKit.MochiChi.get_body(response);
-    var child = body.firstChild;
-    if (!child){
-      throw "Incomplete answer from the server. Suckage :( !"
-    }
-    if (child.nodeName === "success"){
-        // YAY. we are logged in
-        return true
+    try {
+      var child = MochiKit.MochiChi.get_child(body, 'success');
+    } catch (err) {
+        throw {name: "LoginError", message: err};
     }
 
-    throw {name: "LoginError", message: child.nodeName};
+    // YAY. we are logged in
+    console.log("we are done");
+    // re-request the stream
+    var restart = MochiKit.MochiChi.create_body(
+        {"xmpp:restart":"true",
+         "to": this.server
+        });
+    var dfr = this.connection.send(restart);
+    dfr.addCallback(MochiKit.Base.bind(this._feature_setup, this));
+    return dfr;
 
   },
 
@@ -261,16 +324,11 @@ MochiKit.MochiChi.Connection.prototype = {
   },
 
   _md5_challenge: function(response) {
-    var body = MochiKit.MochiChi.get_body(response);
-    var challenge = body.firstChild;
-    MochiKit.Logging.log(challenge);
-    if (challenge.nodeName.toUpperCase() !== "CHALLENGE") {
-      throw {name: "ERROR", message: challenge.nodeName};
-    }
+    var challenge = MochiKit.MochiChi.get_child(
+        MochiKit.MochiChi.get_body(response), 'challenge');
+
     var key = challenge.firstChild.nodeValue;
     MochiKit.Logging.log(key);
-
-    //return response;
 
     var challenge = MochiKit.Crypt.decode64(key);
     var incoming = {
@@ -332,14 +390,13 @@ MochiKit.MochiChi.Connection.prototype = {
 
     var self = this;
     function got_rsp(response){
-      var body = MochiKit.MochiChi.get_body(response);
-      var challenge = body.firstChild;
-      if (!challenge || challenge.nodeName.toUpperCase() !== 'CHALLENGE') {
-        throw {name: "LoginFailed", message: challenge};
-      }
+      var challenge = MochiKit.MochiChi.get_child(
+          MochiKit.MochiChi.get_body(response), 'challenge');
+
       var resp = MochiKit.DOM.createDOM('response', {
                 xmlns: MochiKit.MochiChi.NS.sasl,
             });
+
       return self.connection.simple_send([resp]);
     }
 
@@ -354,12 +411,56 @@ MochiKit.MochiChi.Connection.prototype = {
 
 }
 
+/*
+ * Presence system. Allows you to manage presence settings and subscriptions
+ */
+
+MochiKit.MochiChi.Presence = function (connection) {
+  this.connection = connection;
+}
+
+MochiKit.MochiChi.Presence.prototype = {
+  send_status: function(stat_type, msg) {
+    var children = [
+      MochiKit.DOM.createDOM('show', {}, [stat_type])
+    ];
+
+    if (msg) {
+      children.push(MochiKit.DOM.createDOM('status', {}, [msg]));
+    }
+
+    var presence = MochiKit.DOM.createDOM('presence', {}, children);
+    return this.connection.send(presence);
+  },
+  available: function() {
+    var presence = MochiKit.DOM.createDOM('presence', {}, []);
+    return this.connection.send(presence);
+  },
+  // convinience functions
+  chat: function(msg){
+    return this.send_status('chat', msg);
+  },
+  away: function(msg){
+    return this.send_status('away', msg);
+  },
+  xa: function(msg){
+    return this.send_status('xa', msg);
+  },
+  dnd: function(msg){
+    return this.send_status('dnd', msg);
+  }
+
+}
+
 MochiKit.Base.update(MochiKit.MochiChi, {
     // Namespace we support/know of:
     NS: {
       httpbind: 'http://jabber.org/protocol/httpbind',
+      bind: 'urn:ietf:params:xml:ns:xmpp-bind',
+      client: 'jabber:client',
       sasl: "urn:ietf:params:xml:ns:xmpp-sasl"
     },
+
     get_body: function(response) {
       var body = null;
       try {
@@ -368,15 +469,30 @@ MochiKit.Base.update(MochiKit.MochiChi, {
         body = response;
       }
 
-      if (!body.nodeName || body.nodeName.toUpperCase() !== 'BODY')
+      if (!body || !body.nodeName || body.nodeName.toUpperCase() !== 'BODY')
         throw {name: "NoBodyElementFound"};
 
       return body;
     },
 
+    get_child: function(daddy, child_name) {
+      var child = daddy.firstChild;
+      if (!child){
+        throw {name: 'ParseError', message:'No Child found for ' + daddy}
+      }
+      if (!child.nodeName || 
+            child.nodeName.toUpperCase() != child_name.toUpperCase()){
+        throw {name: 'ParseError',
+            message: daddy + ' has unexpected child. Found ' +
+                     child.NodeName + ' instead of ' + child_name}
+      }
+      return child;
+    },
+
     create_body: function(attrs, nodes) {
       var defaults = {
           xmlns: MochiKit.MochiChi.NS.httpbind,
+   //       "xmlns:xmpp": "urn:xmpp:xbosh",
           rid: MochiKit.MochiChi._nextRequestId(),
         }
 
@@ -384,6 +500,18 @@ MochiKit.Base.update(MochiKit.MochiChi, {
 
     return MochiKit.DOM.createDOM('body', attrs, nodes);
     },
+
+    create_iq: function(attrs, nodes) {
+      var defaults = {
+          xmlns: MochiKit.MochiChi.NS.client,
+          id: MochiKit.MochiChi._nextIQId()
+        }
+
+    MochiKit.Base.update(attrs, defaults)
+
+    return MochiKit.DOM.createDOM('iq', attrs, nodes);
+    },
+
 
     // FIXME: add tests for quoting
     quote: function (before)
@@ -413,5 +541,6 @@ MochiKit.Base.update(MochiKit.MochiChi, {
 
     return results
     },
-    _nextRequestId: MochiKit.Base.counter(Math.ceil(Math.random() * 10203))
+    _nextRequestId: MochiKit.Base.counter(Math.ceil(Math.random() * 10203)),
+    _nextIQId: MochiKit.Base.counter(Math.ceil(Math.random() * 20403))
 });
