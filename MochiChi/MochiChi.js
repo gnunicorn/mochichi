@@ -6,7 +6,7 @@ MochiKit.MochiChi 1.5
 
 ***/
 
-MochiKit.Base._module('MochiChi', '1.5', ['Base', 'Async', 'Signal', 'DOM', 'Crypt', 'Logging']);
+MochiKit.Base._module('MochiChi', '1.5', ['Base', 'Async', 'Signal', 'DOM', 'Crypt', 'Logging', 'Iter']);
 
 /** @id MochiKit.MochiChi.Connection
  * 
@@ -235,6 +235,12 @@ MochiKit.MochiChi.Connection.prototype = {
   },
 
   send_iq: function(attrs, nodes) {
+    var defaults = {
+      'from' : this.jid
+    }
+
+    MochiKit.Base.update(attrs, defaults);
+
     var iq = MochiKit.MochiChi.create_iq(attrs, nodes);
     var dfr = new MochiKit.Async.Deferred();
     this.iq_deferreds[iq.getAttribute('id')] = dfr;
@@ -277,8 +283,19 @@ MochiKit.MochiChi.Connection.prototype = {
   },
 
   _features_done: function(iq_response) {
-    var features = MochiKit.MochiChi.get_child(iq_response, 'bind')
-    console.log("features done");
+    var jid = MochiKit.MochiChi.get_child(
+        MochiKit.MochiChi.get_child(iq_response, 'bind'), 'jid');
+    this.jid = jid.firstChild.nodeValue;
+    console.log("received new jid: " + this.jid);
+
+
+    // now initiate the session officially
+    var dfr = this.send_iq({type: 'set'}, [
+        MochiKit.DOM.createDOM('session',
+            {'xmlns': MochiKit.MochiChi.NS.session}, [])
+        ]);
+    // dfr.addCallback(MochiKit.Base.bind(this._features_done, this));
+    return dfr
   },
 
   _feature_setup: function (response) {
@@ -330,6 +347,7 @@ MochiKit.MochiChi.Connection.prototype = {
     var digest_md5_allowed = false;
     var anonymous_allowed = false;
 
+    // FIXME: using MochiKit.Iter.forEach would be nicer
     var mechanisms = body.getElementsByTagName("mechanism");
     for (var i = 0; i < mechanisms.length; i++) {
         var mech = mechanisms[i].firstChild.nodeValue;
@@ -453,6 +471,37 @@ MochiKit.MochiChi.Connection.prototype = {
 
   },
 
+  auto_discover: function(entity) {
+    // discover every and all the subs
+    var self = this;
+    function discover_more(disco) {
+      var reqs = [];
+      var discovered = disco.discovered = [];
+      MochiKit.Iter.forEach(disco.items, function(jid) {
+        var dfr = self.auto_discover(jid);
+        dfr.addCallback(discovered.push);
+        reqs.push(dfr);
+      });
+      return MochiKit.Async.DeferredList(reqs);
+    }
+    
+    var dfr = this.discover(entity)
+    dfr.addCallback(discover_more);
+    return dfr
+  },
+
+  discover: function(entity) {
+    if (!entity){
+      entity = this.server;
+    }
+
+    var disco = new MochiKit.MochiChi.Disco(this, entity);
+    dfr = disco.discover_items();
+    dfr.addCallback(MochiKit.Base.partial(MochiKit.Base.bind(
+        disco.discover_info, disco)));
+    dfr.addCallback(function() { return disco });
+    return dfr
+  },
   disconnect: function() {
     
   }
@@ -500,13 +549,77 @@ MochiKit.MochiChi.Presence.prototype = {
 
 }
 
+MochiKit.MochiChi.Disco = function(connection, entity) {
+  this.connection = connection;
+  this.entity = entity;
+
+  this.items = [];
+  this.features = [];
+}
+
+MochiKit.MochiChi.Disco.prototype = {
+  
+  discover_items: function() {
+    this.items = [];
+    var dfr = this.connection.send_iq({type: 'get', to: this.entity}, [
+        MochiKit.DOM.createDOM('query',
+          { xmlns: MochiKit.MochiChi.NS.disco_items }, []
+        )]
+      );
+    dfr.addCallback(MochiKit.Base.bind(this._parse_items, this));
+    return dfr;
+  },
+  discover_info: function() {
+    this.features = [];
+    var dfr = this.connection.send_iq({type: 'get', to: this.entity}, [
+        MochiKit.DOM.createDOM('query',
+          { xmlns: MochiKit.MochiChi.NS.disco_info }, []
+        )]
+      );
+    dfr.addCallback(MochiKit.Base.bind(this._parse_info, this));
+    return dfr;
+  },
+
+  // internals
+  _parse_info: function(iq) {
+    var query = MochiKit.MochiChi.get_child(iq, 'query');
+    var that = this;
+    MochiKit.Iter.forEach(query.getElementsByTagName('feature'),
+      function(item) {
+        that.features.push(item.getAttribute('var'));
+      });
+    console.log(this.features);
+    return this.features;
+  },
+
+  _parse_items: function(iq) {
+    var query = MochiKit.MochiChi.get_child(iq, 'query');
+    var that = this;
+    MochiKit.Iter.forEach(query.getElementsByTagName('item'),
+      function(item) {
+        var jid = item.getAttribute('jid');
+        if (!jid || jid === that.entity){
+          return;
+        }
+        that.items.push(jid);
+      });
+    console.log(this.items);
+    return this.items;
+  }
+}
+
 MochiKit.Base.update(MochiKit.MochiChi, {
     // Namespace we support/know of:
     NS: {
       httpbind: 'http://jabber.org/protocol/httpbind',
       bind: 'urn:ietf:params:xml:ns:xmpp-bind',
       client: 'jabber:client',
-      sasl: "urn:ietf:params:xml:ns:xmpp-sasl"
+      sasl: "urn:ietf:params:xml:ns:xmpp-sasl",
+      session: 'urn:ietf:params:xml:ns:xmpp-session',
+
+      // DISCO
+      disco_info: 'http://jabber.org/protocol/disco#info',
+      disco_items: 'http://jabber.org/protocol/disco#items'
     },
 
     get_body: function(response) {
