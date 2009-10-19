@@ -5,12 +5,44 @@
     <script type="text/javascript" src="../MochiChi/MochiChi.js"></script>
 </head>
 <body>
+	<table>
+		<tr>
+			<td>Quote</td>
+			<td><div id="quote"/></td>
+		</tr>
+		<tr>
+			<td>Lower</td>
+			<td><div id="lower"/></td>
+		</tr>
+		<tr>
+			<td>Stagnant</td>
+			<td><div id="stagnant"/></td>
+		</tr>
+		<tr>
+			<td>Upper</td>
+			<td><div id="upper"/></td>
+		</tr>
+</table>
+
 <pre id="test">
 <script type="text/javascript">
+function got_message(message){
+	var val = message.split(';', 2);
+	var quote = val[0];
+	var stakes = val[1].split(',');
+	MochiKit.DOM.getElement('quote').innerHTML = quote;
+	MochiKit.DOM.getElement('lower').innerHTML = stakes[0];
+	MochiKit.DOM.getElement('stagnant').innerHTML = stakes[1];
+	MochiKit.DOM.getElement('upper').innerHTML = stakes[2];
+}
 function discover(connection, res)
 {
-	server_entity = new MochiKit.MochiChi.Entity(connection, 'ben@localhost');
-	return server_entity.auto_discover()
+	bot_entity = new MochiKit.MochiChi.Entity(connection, 'karl@localhost');
+	connection.msg_handlers['karl@localhost'] = bot_entity;
+	MochiKit.Signal.connect(bot_entity, 'message', got_message);
+	dfr = bot_entity.auto_discover();
+	dfr.addCallback(function() {bot_entity.send_message('hi');});
+	return dfr
 }
 try {
 	console.log('started');

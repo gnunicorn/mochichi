@@ -206,7 +206,7 @@ MochiKit.MochiChi.Connection = function(service_url) {
     this.iq_deferreds = {};
 
     // message management is fun
-    this.msg_handlers = [];
+    this.msg_handlers = {};
 
     MochiKit.Signal.connect(this.connection, 'connected', console.log);
   }
@@ -273,9 +273,24 @@ MochiKit.MochiChi.Connection.prototype = {
     return dfr.errback(DOM);
   },
 
-  _handle_message_response: function(DOM) {
-    MochiKit.Logging.warning("message " + DOM);
-    MochiKit.Signal.signal(this, 'unknown-message', DOM);
+  _handle_message_response: function(message) {
+    var user = message.getAttribute('from');
+    var handler = this.msg_handlers[user];
+    if (!handler){
+        var jid = MochiKit.MochiChi.parse_jid(user);
+        handler = this.msg_handlers[jid['user'] + '@' + jid['domain']]
+        if (!handler) {
+          // we don't know you in any way. trigger message
+          MochiKit.Logging.warning("unknown message " + message);
+          MochiKit.Signal.signal(this, 'unknown-message', message);
+          return;
+        }
+      }
+    try {
+      handler.got_message(message)
+    } catch (err) {
+      MochiKit.Logging.warning("message handling failed with handler " + handler + " : " + message);
+    }
   },
 
   _handle_presence_response: function(DOM) {
@@ -678,6 +693,25 @@ MochiKit.MochiChi.Entity.prototype = {
     return dfr
   },
 
+  // wrapper function
+  send: function(dom) {
+    return this.connection.send(dom);
+  },
+
+  // internals
+  got_message: function(message) {
+    // console.log(message);
+    /*if (message.getAttribute('type').toUpperCase() != 'normal') {
+      console.log("message unknown " + message);
+      return
+    }*/
+    var body = MochiKit.MochiChi.get_child(message, 'body');
+    // 'lil hack. should actually go through the features and find the
+    // right one instead of triggering the value itself.
+    // FIXME !!!
+    MochiKit.Signal.signal(this, 'message', body.firstChild.nodeValue);
+  },
+
   repr: function () {
       return 'Entity(' + this.jid + ')';
   },
@@ -740,6 +774,41 @@ MochiKit.MochiChi.EntityPresenceFeature.prototype = {
 
 }
 
+MochiKit.MochiChi.EntityMessageFeature = function (entity) {
+  this.entity = entity;
+}
+
+MochiKit.MochiChi.EntityMessageFeature.matches = function () { return true }
+
+MochiKit.MochiChi.EntityMessageFeature.prototype = {
+
+  set_up: function() {
+    // decorate the entity itself to add features or signals
+    // or stuff. you might also want to add your self to
+    // the main namespace of the entity
+
+    this.entity.send_message = MochiKit.Base.bind(this.send_message, this);
+
+    // we also want to 
+    console.log("message setup done");
+  },
+
+  send_message: function(body_text) {
+    return this.entity.send(MochiKit.DOM.createDOM('message',
+        {'to' : this.entity.jid, 'type': 'normal'}, [
+            MochiKit.DOM.createDOM('body', {}, [body_text])
+          ]));
+  },
+
+  repr: function () {
+      return 'EntityPresenceFeature';
+  },
+
+  toString: MochiKit.Base.forwardCall("repr")
+
+}
+
+
 
 MochiKit.Base.update(MochiKit.MochiChi, {
     // Namespace we support/know of:
@@ -771,7 +840,8 @@ MochiKit.Base.update(MochiKit.MochiChi, {
 
       // setup defaults
       return [
-        creator(MochiKit.MochiChi.EntityPresenceFeature)
+        creator(MochiKit.MochiChi.EntityPresenceFeature),
+        creator(MochiKit.MochiChi.EntityMessageFeature)
         // 
         ]
       }(),
