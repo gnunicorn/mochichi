@@ -9,8 +9,8 @@
 <script type="text/javascript">
 function discover(connection, res)
 {
-	var server = new MochiKit.MochiChi.Entity(connection, 'ben@localhost');
-	return server.auto_discover()
+	server_entity = new MochiKit.MochiChi.Entity(connection, 'ben@localhost');
+	return server_entity.auto_discover()
 }
 try {
 	console.log('started');

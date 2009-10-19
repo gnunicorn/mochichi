@@ -166,7 +166,7 @@ MochiKit.MochiChi.RawConnection.prototype =  {
     },
 
     repr: function () {
-        return 'Connection(' + this.id + ', ' + this.connected + ')';
+        return 'RawConnection(' + this.id + ', ' + this.connected + ')';
     },
 
     disconnect: function () {
@@ -506,8 +506,13 @@ MochiKit.MochiChi.Connection.prototype = {
   */
   disconnect: function() {
     
-  }
+  },
 
+  repr: function () {
+      return 'Connection(' + this.jid + ')';
+  },
+
+  toString: MochiKit.Base.forwardCall("repr")
 }
 
 /*
@@ -547,7 +552,13 @@ MochiKit.MochiChi.Presence.prototype = {
   },
   dnd: function(msg){
     return this.send_status('dnd', msg);
-  }
+  },
+
+  repr: function () {
+      return 'PresenceHelper(' + this.connection.jid + ')';
+  },
+
+  toString: MochiKit.Base.forwardCall("repr")
 
 }
 
@@ -610,9 +621,20 @@ MochiKit.MochiChi.Disco.prototype = {
       });
     console.log(this.items);
     return this.items;
-  }
+  },
+
+  repr: function () {
+      return 'Disco(' + this.entity + ')';
+  },
+
+  toString: MochiKit.Base.forwardCall("repr")
+
 }
 
+/*
+ * An entity is one representation of a set of features a jabber entity
+ * in your network supports.
+ * */
 MochiKit.MochiChi.Entity = function(connection, jid) {
   this.connection = connection;
   this.jid = jid;
@@ -629,10 +651,12 @@ MochiKit.MochiChi.Entity.prototype = {
 
     var self = this;
     function load_results(results) {
+      self.feature_list = results;
       var dfrs = [];
       MochiKit.Iter.forEach(features, function(cur_feature) {
           if (cur_feature.matches(results)) {
-            dfrs.push(self.add_feature(cur_feature));
+            dfrs.push(MochiKit.Base.bind(
+                self.add_feature, self)(cur_feature));
           } else {
             console.log("Not loaded " + cur_feature);
           }
@@ -648,11 +672,74 @@ MochiKit.MochiChi.Entity.prototype = {
   },
 
   add_feature: function(feature) {
-    dfr = MochiKit.Async.maybeDeferred(feature.set_up, this);
-    dfr.addCallback(this.features.push);
+    var dfr = MochiKit.Async.maybeDeferred(feature.set_up, this);
+    dfr.addCallback(
+        MochiKit.Base.bind(this.features.push, this.features));
     return dfr
-  }
+  },
+
+  repr: function () {
+      return 'Entity(' + this.jid + ')';
+  },
+
+  toString: MochiKit.Base.forwardCall("repr")
+
 }
+
+/*
+ * This is a API description for a entity feature setup:
+ *
+ * {
+ *  matches: function (list_of_features_as_xmpp_namespace_strings) {
+ *    if (MochiKit.Base.findValue('my_feature')) {
+ *      return true;
+ *    }
+ *    return false;
+ *  },
+ *
+ *  set_up: function(entity) {
+ *    var my_feature = new MochiKit.MochiChi.CoolFeature(entity);
+ *    
+ *    function after_setup_callback(internal_result) {
+ *      // doing something awesome instead
+ *      return my_feature;
+ *    }
+ *
+ *    dfr = my_feature.set_up_entity();
+ *    dfr.addCallback(after_setup_callback);
+ *    return dfr
+ *  }
+ * } 
+ *
+ */
+
+MochiKit.MochiChi.EntityPresenceFeature = function (entity) {
+  this.entity = entity;
+}
+
+MochiKit.MochiChi.EntityPresenceFeature.matches = function () { return true }
+
+MochiKit.MochiChi.EntityPresenceFeature.prototype = {
+
+  set_up: function() {
+    // decorate the entity itself to add features or signals
+    // or stuff. you might also want to add your self to
+    // the main namespace of the entity
+
+    this.entity.presence = this;
+
+    // we also want to 
+    console.log("setup called");
+  },
+
+  repr: function () {
+      return 'EntityPresenceFeature';
+  },
+
+  toString: MochiKit.Base.forwardCall("repr")
+
+}
+
 
 MochiKit.Base.update(MochiKit.MochiChi, {
     // Namespace we support/know of:
@@ -668,9 +755,26 @@ MochiKit.Base.update(MochiKit.MochiChi, {
       disco_items: 'http://jabber.org/protocol/disco#items'
     },
 
-    ENTITY_FEATURES: [
-      // 
-    ],
+    ENTITY_FEATURES: function() { 
+      function creator(feature) {
+        return {
+          matches: feature.matches,
+          set_up: function(entity) {
+              var new_feature = new feature(entity);
+              dfr = MochiKit.Async.maybeDeferred(
+                  MochiKit.Base.bind(new_feature.set_up, new_feature));
+              dfr.addCallback(function () {return new_feature;})
+              return dfr
+            }
+          }
+        }
+
+      // setup defaults
+      return [
+        creator(MochiKit.MochiChi.EntityPresenceFeature)
+        // 
+        ]
+      }(),
 
     get_body: function(response) {
       var body = null;
