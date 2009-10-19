@@ -471,6 +471,7 @@ MochiKit.MochiChi.Connection.prototype = {
 
   },
 
+  /*
   auto_discover: function(entity) {
     // discover every and all the subs
     var self = this;
@@ -502,6 +503,7 @@ MochiKit.MochiChi.Connection.prototype = {
     dfr.addCallback(function() { return disco });
     return dfr
   },
+  */
   disconnect: function() {
     
   }
@@ -549,6 +551,9 @@ MochiKit.MochiChi.Presence.prototype = {
 
 }
 
+/*
+ *  Discovery Features encapsulated.
+ * */
 MochiKit.MochiChi.Disco = function(connection, entity) {
   this.connection = connection;
   this.entity = entity;
@@ -588,7 +593,7 @@ MochiKit.MochiChi.Disco.prototype = {
       function(item) {
         that.features.push(item.getAttribute('var'));
       });
-    console.log(this.features);
+    console.log("features parsed: " + this.features);
     return this.features;
   },
 
@@ -608,6 +613,47 @@ MochiKit.MochiChi.Disco.prototype = {
   }
 }
 
+MochiKit.MochiChi.Entity = function(connection, jid) {
+  this.connection = connection;
+  this.jid = jid;
+  this.discoverer = new MochiKit.MochiChi.Disco(this.connection, this.jid);
+  this.identities = [];
+  this.features = [];
+}
+
+MochiKit.MochiChi.Entity.prototype = {
+  auto_discover: function (/* optional */ features) {
+    if (!features) {
+      var features = MochiKit.MochiChi.ENTITY_FEATURES;
+    }
+
+    var self = this;
+    function load_results(results) {
+      var dfrs = [];
+      MochiKit.Iter.forEach(features, function(cur_feature) {
+          if (cur_feature.matches(results)) {
+            dfrs.push(self.add_feature(cur_feature));
+          } else {
+            console.log("Not loaded " + cur_feature);
+          }
+        });
+
+      return MochiKit.Async.gatherResults(dfrs);
+    }
+
+    var dfr = this.discoverer.discover_info();
+    dfr.addCallback(load_results);
+    return dfr
+
+  },
+
+  add_feature: function(feature) {
+    dfr = MochiKit.Async.maybeDeferred(feature.set_up, this);
+    dfr.addCallback(this.features.push);
+    return dfr
+  }
+}
+
 MochiKit.Base.update(MochiKit.MochiChi, {
     // Namespace we support/know of:
     NS: {
@@ -621,6 +667,10 @@ MochiKit.Base.update(MochiKit.MochiChi, {
       disco_info: 'http://jabber.org/protocol/disco#info',
       disco_items: 'http://jabber.org/protocol/disco#items'
     },
+
+    ENTITY_FEATURES: [
+      // 
+    ],
 
     get_body: function(response) {
       var body = null;

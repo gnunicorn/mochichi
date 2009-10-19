@@ -7,17 +7,18 @@
 <body>
 <pre id="test">
 <script type="text/javascript">
-function discover(user, res)
+function discover(connection, res)
 {
-	return user.auto_discover()
+	var server = new MochiKit.MochiChi.Entity(connection, 'ben@localhost');
+	return server.auto_discover()
 }
 try {
 	console.log('started');
 	var my_user = new MochiKit.MochiChi.Connection('/xmpp-httpbind');
 	console.log('yay');
 	dfr = my_user.connect('webtest@localhost', 'pass');
-	dfr.addCallback(discover, my_user);
-	dfr.addErrback(console.log);
+	dfr.addCallback(discover,my_user);
+	dfr.addBoth(console.log);
 	console.log("yep" + dfr);
 } catch (err) {
 	console.log('error '+ err);
