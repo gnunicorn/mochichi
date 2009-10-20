@@ -656,6 +656,8 @@ MochiKit.MochiChi.Entity = function(connection, jid) {
   this.discoverer = new MochiKit.MochiChi.Disco(this.connection, this.jid);
   this.identities = [];
   this.features = [];
+  // map of xmlns-> callback with (current_child, context_message)
+  this.msg_handlers = {};
 }
 
 MochiKit.MochiChi.Entity.prototype = {
@@ -705,11 +707,15 @@ MochiKit.MochiChi.Entity.prototype = {
       console.log("message unknown " + message);
       return
     }*/
-    var body = MochiKit.MochiChi.get_child(message, 'body');
-    // 'lil hack. should actually go through the features and find the
-    // right one instead of triggering the value itself.
-    // FIXME !!!
-    MochiKit.Signal.signal(this, 'message', body.firstChild.nodeValue);
+    var self = this;
+    MochiKit.Iter.forEach(message.children, function(child) {
+        var namespace = child.getAttribute('xmlns');
+        var callback = self.msg_handlers[namespace];
+        if (callback) {
+          callback(child, message);
+        }
+      });
+    // MochiKit.Signal.signal(this, 'message', body.firstChild.nodeValue);
   },
 
   repr: function () {
