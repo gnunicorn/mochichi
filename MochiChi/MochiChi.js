@@ -31,13 +31,15 @@ MochiKit.MochiChi.RawConnection = function (url) {
 
     // internal for error handling
     this.errors = 0;
-  }
+  };
 
 MochiKit.MochiChi.RawConnection.prototype =  {
     connect: function(server) {
 
-      if (this.connected)
-        throw "Connection already/still connected"
+      if (this.connected) {
+        throw({name: "AlreadyConnected",
+            message:"Connection already/still connected"});
+      }
 
       var attrs = {
           'to' : server,
@@ -46,8 +48,8 @@ MochiKit.MochiChi.RawConnection.prototype =  {
           'xmpp:version': '1.0',
           'ver': this.version,
           'wait': this.wait, // 3 is good for testing
-          'hold': this.hold,
-        }
+          'hold': this.hold
+        };
 
       self = this;
       var start_session = function(response) {
@@ -66,12 +68,12 @@ MochiKit.MochiChi.RawConnection.prototype =  {
           return response;
         };
       var finalize_request = function(response){
-          self._schedule_send()
+          self._schedule_send();
           return response;
-        }
+        };
 
       var dfr = this.send(MochiKit.MochiChi.create_body(attrs));
-      dfr.addCallback(start_session)
+      dfr.addCallback(start_session);
       return dfr;
     },
 
@@ -108,7 +110,7 @@ MochiKit.MochiChi.RawConnection.prototype =  {
         }
         this.currently_open --;
         this._schedule_send();
-        return result
+        return result;
     },
 
     _got_error: function(error) {
@@ -147,7 +149,7 @@ MochiKit.MochiChi.RawConnection.prototype =  {
     _schedule_send: function() {
       if (!this.connected ||
             (this.spool.length === 0 && this.currently_open >= this.hold)) {
-        return
+        return;
       }
       this.currently_open ++;
       var spooled = this.spool;
@@ -159,10 +161,10 @@ MochiKit.MochiChi.RawConnection.prototype =  {
           MochiKit.Base.bind(this._got_response, this),
           // Errback
           MochiKit.Base.bind(this._got_error, this)
-            )
+        );
 
-      dfr.addBoth(MochiKit.Base.bind(this._send_done, this))
-      return dfr
+      dfr.addBoth(MochiKit.Base.bind(this._send_done, this));
+      return dfr;
     },
 
     repr: function () {
@@ -176,9 +178,9 @@ MochiKit.MochiChi.RawConnection.prototype =  {
 
 
     toString: MochiKit.Base.forwardCall("repr"),
-    _nextId: MochiKit.Base.counter(),
+    _nextId: MochiKit.Base.counter()
 
-  }
+  };
 
 
 /** @id MochiKit.MochiChi.Connection
@@ -209,7 +211,7 @@ MochiKit.MochiChi.Connection = function(service_url) {
     this.msg_handlers = {};
 
     MochiKit.Signal.connect(this.connection, 'connected', console.log);
-  }
+  };
 
 MochiKit.MochiChi.Connection.prototype = {
     connect: function (jid, password) {
@@ -217,27 +219,27 @@ MochiKit.MochiChi.Connection.prototype = {
       this.jid = jid;
       this.password = password;
       var parsed = MochiKit.MochiChi.parse_jid(jid);
-      this.server = parsed['domain'];
-      this.username = parsed['user'];
-      this.resource = parsed['resource'] ? parsed['resource'] : 'MochiChi';
+      this.server = parsed.domain;
+      this.username = parsed.user;
+      this.resource = parsed.resource ? parsed.resource : 'MochiChi';
 
       var dfr = null;
       if (this.connection.connected) {
-        throw {name: "UnsupportedError", message:"already connected"}
+        throw {name: "UnsupportedError", message:"already connected"};
       }
 
       dfr = this.connection.connect(this.server);
       MochiKit.Signal.connect(this.connection, 'response',
-                MochiKit.Base.bind(this._handle_response, this))
+                MochiKit.Base.bind(this._handle_response, this));
 
       dfr.addCallback(MochiKit.Base.bind(this._login, this));
-      return dfr
+      return dfr;
   },
 
   send_iq: function(attrs, nodes) {
     var defaults = {
       'from' : this.jid
-    }
+    };
 
     MochiKit.Base.update(attrs, defaults);
 
@@ -245,7 +247,7 @@ MochiKit.MochiChi.Connection.prototype = {
     var dfr = new MochiKit.Async.Deferred();
     this.iq_deferreds[iq.getAttribute('id')] = dfr;
     this.send(iq);
-    return dfr
+    return dfr;
   },
 
   send: function(DOM) {
@@ -253,7 +255,7 @@ MochiKit.MochiChi.Connection.prototype = {
   },
 
   _handle_response: function(DOM){
-    MochiKit.Logging.log("got " + DOM.nodeName)
+    MochiKit.Logging.log("got " + DOM.nodeName);
     this['_handle_' + DOM.nodeName.toLowerCase() + '_response'](DOM);
   },
   
@@ -278,7 +280,7 @@ MochiKit.MochiChi.Connection.prototype = {
     var handler = this.msg_handlers[user];
     if (!handler){
         var jid = MochiKit.MochiChi.parse_jid(user);
-        handler = this.msg_handlers[jid['user'] + '@' + jid['domain']]
+        handler = this.msg_handlers[jid.user + '@' + jid.domain];
         if (!handler) {
           // we don't know you in any way. trigger message
           MochiKit.Logging.warning("unknown message " + message);
@@ -287,7 +289,7 @@ MochiKit.MochiChi.Connection.prototype = {
         }
       }
     try {
-      handler.got_message(message)
+      handler.got_message(message);
     } catch (err) {
       MochiKit.Logging.warning("message handling failed with handler " + handler + " : " + message);
     }
@@ -310,7 +312,7 @@ MochiKit.MochiChi.Connection.prototype = {
             {'xmlns': MochiKit.MochiChi.NS.session}, [])
         ]);
     // dfr.addCallback(MochiKit.Base.bind(this._features_done, this));
-    return dfr
+    return dfr;
   },
 
   _feature_setup: function (response) {
@@ -326,7 +328,7 @@ MochiKit.MochiChi.Connection.prototype = {
           ])
         ]);
     dfr.addCallback(MochiKit.Base.bind(this._features_done, this));
-    return dfr
+    return dfr;
   },
 
   _got_auth: function(response) {
@@ -384,16 +386,16 @@ MochiKit.MochiChi.Connection.prototype = {
                 mechanism: "ANONYMOUS"});
       var dfr = this.connection.simple_send([request]);
       dfr.addCallback(MochiKit.Base.bind(this._got_auth, this));
-      return dfr
+      return dfr;
 
     } else if (digest_md5_allowed) {
-      var request = MochiKit.DOM.createDOM('auth', {
+      var md5_request = MochiKit.DOM.createDOM('auth', {
                 xmlns: MochiKit.MochiChi.NS.sasl,
                 mechanism: "DIGEST-MD5"});
-      var dfr = this.connection.simple_send([request]);
-      dfr.addCallback(MochiKit.Base.bind(this._md5_challenge, this));
-      dfr.addCallback(MochiKit.Base.bind(this._got_auth, this));
-      return dfr
+      var md5_dfr = this.connection.simple_send([md5_request]);
+      md5_dfr.addCallback(MochiKit.Base.bind(this._md5_challenge, this));
+      md5_dfr.addCallback(MochiKit.Base.bind(this._got_auth, this));
+      return md5_dfr;
 
     } else if (plain_allowed) {
       throw {name: "NotImplemented", message: "plain text isn't implemented yet"};
@@ -405,19 +407,19 @@ MochiKit.MochiChi.Connection.prototype = {
   },
 
   _md5_challenge: function(response) {
-    var challenge = MochiKit.MochiChi.get_child(
+    var challenge_node = MochiKit.MochiChi.get_child(
         MochiKit.MochiChi.get_body(response), 'challenge');
 
-    var key = challenge.firstChild.nodeValue;
-    MochiKit.Logging.log(key);
+    var challenge_key = challenge_node.firstChild.nodeValue;
+    MochiKit.Logging.log(challenge_key);
 
-    var challenge = MochiKit.Crypt.decode64(key);
+    var challenge = MochiKit.Crypt.decode64(challenge_key);
     var incoming = {
       realm: "",
       host: null,
       nonce: null,
       qop: null
-      }
+      };
 
     MochiKit.Logging.log(challenge);
     var splitted = challenge.split(',');
@@ -436,7 +438,7 @@ MochiKit.MochiChi.Connection.prototype = {
     var cnonce = MochiKit.Crypt.hex_md5(Math.random() * 1234567890);
 
     var digest_uri = "xmpp/" + this.server;
-    if (incoming['host'] !== null) {
+    if (incoming.host !== null) {
         digest_uri = digest_uri + "/" + host;
     }
 
@@ -450,7 +452,7 @@ MochiKit.MochiChi.Connection.prototype = {
     MochiKit.Logging.log(A1);
     MochiKit.Logging.log(A2);
 
-    var quote = MochiKit.MochiChi.quote
+    var quote = MochiKit.MochiChi.quote;
 
     var responseText = 'username=' + quote(this.username) + 
       ',realm=' + quote(incoming.realm) + ',nonce=' +
@@ -463,11 +465,11 @@ MochiKit.MochiChi.Connection.prototype = {
         ) + ',charset="utf-8"';
 
     MochiKit.Logging.log(responseText);
-    var response = MochiKit.DOM.createDOM('response', {
-                xmlns: MochiKit.MochiChi.NS.sasl,
+    var response_node = MochiKit.DOM.createDOM('response', {
+                xmlns: MochiKit.MochiChi.NS.sasl
             }, [MochiKit.Crypt.encode64(responseText)]);
 
-    var dfr = this.connection.simple_send([response]);
+    var dfr = this.connection.simple_send([response_node]);
 
     var self = this;
     function got_rsp(response){
@@ -475,14 +477,14 @@ MochiKit.MochiChi.Connection.prototype = {
           MochiKit.MochiChi.get_body(response), 'challenge');
 
       var resp = MochiKit.DOM.createDOM('response', {
-                xmlns: MochiKit.MochiChi.NS.sasl,
+                xmlns: MochiKit.MochiChi.NS.sasl
             });
 
       return self.connection.simple_send([resp]);
     }
 
-    dfr.addCallback(got_rsp)
-    return dfr
+    dfr.addCallback(got_rsp);
+    return dfr;
 
   },
 
@@ -528,7 +530,7 @@ MochiKit.MochiChi.Connection.prototype = {
   },
 
   toString: MochiKit.Base.forwardCall("repr")
-}
+};
 
 /*
  * Presence system. Allows you to manage presence settings and subscriptions
@@ -536,7 +538,7 @@ MochiKit.MochiChi.Connection.prototype = {
 
 MochiKit.MochiChi.Presence = function (connection) {
   this.connection = connection;
-}
+};
 
 MochiKit.MochiChi.Presence.prototype = {
   send_status: function(stat_type, msg) {
@@ -575,7 +577,7 @@ MochiKit.MochiChi.Presence.prototype = {
 
   toString: MochiKit.Base.forwardCall("repr")
 
-}
+};
 
 /*
  *  Discovery Features encapsulated.
@@ -586,7 +588,7 @@ MochiKit.MochiChi.Disco = function(connection, entity) {
 
   this.items = [];
   this.features = [];
-}
+};
 
 MochiKit.MochiChi.Disco.prototype = {
   
@@ -644,7 +646,7 @@ MochiKit.MochiChi.Disco.prototype = {
 
   toString: MochiKit.Base.forwardCall("repr")
 
-}
+};
 
 /*
  * An entity is one representation of a set of features a jabber entity
@@ -658,12 +660,12 @@ MochiKit.MochiChi.Entity = function(connection, jid) {
   this.features = [];
   // map of xmlns-> callback with (current_child, context_message)
   this.msg_handlers = {};
-}
+};
 
 MochiKit.MochiChi.Entity.prototype = {
   auto_discover: function (/* optional */ features) {
     if (!features) {
-      var features = MochiKit.MochiChi.ENTITY_FEATURES;
+      features = MochiKit.MochiChi.ENTITY_FEATURES;
     }
 
     var self = this;
@@ -684,7 +686,7 @@ MochiKit.MochiChi.Entity.prototype = {
 
     var dfr = this.discoverer.discover_info();
     dfr.addCallback(load_results);
-    return dfr
+    return dfr;
 
   },
 
@@ -692,7 +694,7 @@ MochiKit.MochiChi.Entity.prototype = {
     var dfr = MochiKit.Async.maybeDeferred(feature.set_up, this);
     dfr.addCallback(
         MochiKit.Base.bind(this.features.push, this.features));
-    return dfr
+    return dfr;
   },
 
   // wrapper function
@@ -724,7 +726,7 @@ MochiKit.MochiChi.Entity.prototype = {
 
   toString: MochiKit.Base.forwardCall("repr")
 
-}
+};
 
 /*
  * This is a API description for a entity feature setup:
@@ -755,9 +757,9 @@ MochiKit.MochiChi.Entity.prototype = {
 
 MochiKit.MochiChi.EntityPresenceFeature = function (entity) {
   this.entity = entity;
-}
+};
 
-MochiKit.MochiChi.EntityPresenceFeature.matches = function () { return true }
+MochiKit.MochiChi.EntityPresenceFeature.matches = function () { return true; };
 
 MochiKit.MochiChi.EntityPresenceFeature.prototype = {
 
@@ -778,13 +780,13 @@ MochiKit.MochiChi.EntityPresenceFeature.prototype = {
 
   toString: MochiKit.Base.forwardCall("repr")
 
-}
+};
 
 MochiKit.MochiChi.EntityMessageFeature = function (entity) {
   this.entity = entity;
-}
+};
 
-MochiKit.MochiChi.EntityMessageFeature.matches = function () { return true }
+MochiKit.MochiChi.EntityMessageFeature.matches = function () { return true; };
 
 MochiKit.MochiChi.EntityMessageFeature.prototype = {
 
@@ -812,7 +814,7 @@ MochiKit.MochiChi.EntityMessageFeature.prototype = {
 
   toString: MochiKit.Base.forwardCall("repr")
 
-}
+};
 
 
 
@@ -838,10 +840,10 @@ MochiKit.Base.update(MochiKit.MochiChi, {
               var new_feature = new feature(entity);
               dfr = MochiKit.Async.maybeDeferred(
                   MochiKit.Base.bind(new_feature.set_up, new_feature));
-              dfr.addCallback(function () {return new_feature;})
-              return dfr
+              dfr.addCallback(function () {return new_feature;});
+              return dfr;
             }
-          }
+          };
         }
 
       // setup defaults
@@ -849,7 +851,7 @@ MochiKit.Base.update(MochiKit.MochiChi, {
         creator(MochiKit.MochiChi.EntityPresenceFeature),
         creator(MochiKit.MochiChi.EntityMessageFeature)
         // 
-        ]
+        ];
       }(),
 
     get_body: function(response) {
@@ -860,8 +862,9 @@ MochiKit.Base.update(MochiKit.MochiChi, {
         body = response;
       }
 
-      if (!body || !body.nodeName || body.nodeName.toUpperCase() !== 'BODY')
+      if (!body || !body.nodeName || body.nodeName.toUpperCase() !== 'BODY') {
         throw {name: "NoBodyElementFound"};
+      }
 
       return body;
     },
@@ -869,13 +872,13 @@ MochiKit.Base.update(MochiKit.MochiChi, {
     get_child: function(daddy, child_name) {
       var child = daddy.firstChild;
       if (!child){
-        throw {name: 'ParseError', message:'No Child found for ' + daddy}
+        throw {name: 'ParseError', message:'No Child found for ' + daddy};
       }
       if (!child.nodeName || 
             child.nodeName.toUpperCase() != child_name.toUpperCase()){
         throw {name: 'ParseError',
             message: daddy + ' has unexpected child. Found ' +
-                     child.NodeName + ' instead of ' + child_name}
+                     child.NodeName + ' instead of ' + child_name};
       }
       return child;
     },
@@ -884,10 +887,10 @@ MochiKit.Base.update(MochiKit.MochiChi, {
       var defaults = {
           xmlns: MochiKit.MochiChi.NS.httpbind,
    //       "xmlns:xmpp": "urn:xmpp:xbosh",
-          rid: MochiKit.MochiChi._nextRequestId(),
-        }
+          rid: MochiKit.MochiChi._nextRequestId()
+        };
 
-    MochiKit.Base.update(attrs, defaults)
+    MochiKit.Base.update(attrs, defaults);
 
     return MochiKit.DOM.createDOM('body', attrs, nodes);
     },
@@ -896,9 +899,9 @@ MochiKit.Base.update(MochiKit.MochiChi, {
       var defaults = {
           xmlns: MochiKit.MochiChi.NS.client,
           id: MochiKit.MochiChi._nextIQId()
-        }
+        };
 
-    MochiKit.Base.update(attrs, defaults)
+    MochiKit.Base.update(attrs, defaults);
 
     return MochiKit.DOM.createDOM('iq', attrs, nodes);
     },
@@ -915,22 +918,22 @@ MochiKit.Base.update(MochiKit.MochiChi, {
         user: null,
         domain: null,
         resource: null
-      }
+      };
 
       // syntax is [user@]domain[/resource]
       var splitted_domain = jid.split('@', 2);
       if (splitted_domain.length === 2) {
-        results['user'] = splitted_domain[0];
+        results.user = splitted_domain[0];
       }
 
-      var splitted_resource = splitted_domain.pop().split('/', 2)
+      var splitted_resource = splitted_domain.pop().split('/', 2);
       if (splitted_resource.length === 2){
-       results['resource'] = splitted_resource.pop();
+       results.resource = splitted_resource.pop();
       }
 
-      results['domain'] = splitted_resource.pop();
+      results.domain = splitted_resource.pop();
 
-    return results
+    return results;
     },
     _nextRequestId: MochiKit.Base.counter(Math.ceil(Math.random() * 10203)),
     _nextIQId: MochiKit.Base.counter(Math.ceil(Math.random() * 20403))
