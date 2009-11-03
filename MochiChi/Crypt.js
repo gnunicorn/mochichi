@@ -477,17 +477,6 @@ var ___add_crypts = function(){
   }
 
   /*
-   * Add integers, wrapping at 2^32. This uses 16-bit operations internally
-   * to work around bugs in some JS interpreters.
-   */
-  function safe_add(x, y)
-  {
-    var lsw = (x & 0xFFFF) + (y & 0xFFFF);
-    var msw = (x >> 16) + (y >> 16) + (lsw >> 16);
-    return (msw << 16) | (lsw & 0xFFFF);
-  }
-
-  /*
    * Bitwise rotate a 32-bit number to the left.
    */
   function bit_rol(num, cnt)
@@ -580,15 +569,15 @@ var ___add_crypts = function(){
       'str_md5': str_md5,
       'hex_hmac_md5': hex_hmac_md5,
       'b64_hmac_md5': b64_hmac_md5,
-      'str_hmac_md5': str_hmac_md5,
+      'str_hmac_md5': str_hmac_md5
 
-    }
+    };
 
   /* fit them into MochiKit
    * 
    * */
   MochiKit.Base.update(MochiKit.Crypt, register);
-}
+};
 
 ___add_crypts();
 
